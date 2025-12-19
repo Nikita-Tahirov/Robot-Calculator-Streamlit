@@ -1,0 +1,15 @@
+[theme]
+# Форсируем светлую тему
+base="light"
+primaryColor="#0061A4"
+backgroundColor="#FFFFFF"
+secondaryBackgroundColor="#F9FAFB"
+textColor="#1C1B1F"
+font="sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+enableCORS = false
+enableXsrfProtection = true
