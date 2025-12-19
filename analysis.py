@@ -99,8 +99,13 @@ def run_parameter_scan(
         
         # Время разгона
         try:
-            time_to_20 = df_sim[df_sim["v_kmh"] >= 20.0].iloc[0]["t"]
-        except IndexError:
+            # Ищем первое вхождение скорости >= 20
+            reached = df_sim[df_sim["v_kmh"] >= 20.0]
+            if not reached.empty:
+                time_to_20 = reached.iloc[0]["t"]
+            else:
+                time_to_20 = 5.0 # Макс время симуляции
+        except Exception:
             time_to_20 = 5.0
         
         results.append({
@@ -120,30 +125,50 @@ def get_optimal_range(df: pd.DataFrame, param_name: str) -> Dict:
     """
     Анализ оптимального диапазона на основе результатов сканирования.
     """
-    # Находим "золотую середину" по нескольким критериям
-    # Нормализуем все метрики к [0, 1]
-    
+    if df.empty:
+        return {"optimal_value": 0, "best_idx": 0, "scores": df}
+
     df_norm = df.copy()
     
-    # Больше = лучше
-    df_norm["speed_score"] = (df["speed_kmh"] - df["speed_kmh"].min()) / (df["speed_kmh"].max() - df["speed_kmh"].min())
-    df_norm["energy_score"] = (df["weapon_energy_kj"] - df["weapon_energy_kj"].min()) / (df["weapon_energy_kj"].max() - df["weapon_energy_kj"].min())
+    # Вспомогательная функция для безопасной нормализации (0..1)
+    def normalize(series, maximize=True):
+        min_val = series.min()
+        max_val = series.max()
+        diff = max_val - min_val
+        
+        # Защита от деления на ноль (если все значения одинаковые)
+        if diff == 0:
+            return pd.Series([0.5] * len(series), index=series.index)
+            
+        if maximize:
+            return (series - min_val) / diff
+        else:
+            return 1.0 - (series - min_val) / diff
+
+    # Нормализуем метрики
+    df_norm["speed_score"] = normalize(df["speed_kmh"], maximize=True)
+    df_norm["energy_score"] = normalize(df["weapon_energy_kj"], maximize=True)
+    df_norm["mass_score"] = normalize(df["total_mass"], maximize=False)
+    df_norm["current_score"] = normalize(df["peak_current"], maximize=False)
+    df_norm["time_score"] = normalize(df["time_to_20"], maximize=False)
     
-    # Меньше = лучше (инвертируем)
-    df_norm["mass_score"] = 1 - (df["total_mass"] - df["total_mass"].min()) / (df["total_mass"].max() - df["total_mass"].min())
-    df_norm["current_score"] = 1 - (df["peak_current"] - df["peak_current"].min()) / (df["peak_current"].max() - df["peak_current"].min())
-    df_norm["time_score"] = 1 - (df["time_to_20"] - df["time_to_20"].min()) / (df["time_to_20"].max() - df["time_to_20"].min())
-    
-    # Общий балл (можно варьировать веса)
+    # Считаем общий балл с весами
+    # fillna(0) защищает от NaN если что-то пошло не так
     df_norm["total_score"] = (
-        df_norm["speed_score"] * 0.3 +
-        df_norm["energy_score"] * 0.2 +
-        df_norm["mass_score"] * 0.2 +
-        df_norm["current_score"] * 0.15 +
-        df_norm["time_score"] * 0.15
+        df_norm["speed_score"].fillna(0) * 0.3 +
+        df_norm["energy_score"].fillna(0) * 0.2 +
+        df_norm["mass_score"].fillna(0) * 0.2 +
+        df_norm["current_score"].fillna(0) * 0.15 +
+        df_norm["time_score"].fillna(0) * 0.15
     )
     
+    # Находим индекс лучшего значения
     best_idx = df_norm["total_score"].idxmax()
+    
+    # Защита: если idxmax вернул NaN (крайне редко)
+    if pd.isna(best_idx):
+        best_idx = df.index[0]
+        
     optimal_value = df.loc[best_idx, "param_value"]
     
     return {
