@@ -37,6 +37,8 @@ from optimizer import (
     get_default_bounds,
     parse_optimized_params,
 )
+# Импорт нового модуля руководства
+from manual import show_manual
 
 ROBOT_LIMIT_KG = 110.0
 
@@ -49,7 +51,6 @@ def cached_static_calc(
     _other_params_hash  # Остальные параметры в виде хэша
 ):
     """Кэшированная версия статических расчетов для Live Preview."""
-    # Восстанавливаем полный inputs из кэша
     inputs = st.session_state.get("full_inputs", {})
     if not inputs:
         return None
@@ -128,7 +129,6 @@ def build_sidebar():
         "armor_area_total": armor_area_total,
     }
     
-    # Сохраняем в session_state для кэша
     st.session_state["full_inputs"] = inputs
 
     return inputs, base_drive_mass, base_elec_mass, base_frame_mass
@@ -139,11 +139,15 @@ def main():
     inject_global_css()
     init_comparison_state()
 
+    # --- ЛОГИКА РУКОВОДСТВА ПОЛЬЗОВАТЕЛЯ ---
+    # 1. Инициализация состояния
+    if "first_visit" not in st.session_state:
+        st.session_state.first_visit = True
+
     inputs, base_drive_mass, base_elec_mass, base_frame_mass = build_sidebar()
 
-    # --------- Расчеты (с кэшированием для Live Preview) ---------
+    # --------- Расчеты ---------
     
-    # Быстрые статические расчеты (кэшируются)
     other_params = f"{inputs['battery_ir_mohm']}_{inputs['drive_motor_count']}"
     static_res = cached_static_calc(
         inputs["voltage_s"], inputs["motor_kv"], inputs["gear_ratio"],
@@ -152,11 +156,9 @@ def main():
         other_params
     )
     
-    # Если кэш не сработал, считаем заново
     if static_res is None:
         static_res = run_static_calculations(inputs)
 
-    # Для Live Preview делаем упрощенную симуляцию (без оружия, короче)
     if "live_preview_mode" not in st.session_state:
         st.session_state["live_preview_mode"] = True
     
@@ -177,7 +179,6 @@ def main():
         "esc_current_limit_weapon": inputs["esc_current_limit_weapon"],
     }
 
-    # Полная симуляция (для детальных табов)
     df_sim = simulate_full_system(sim_params, static_res["total_mass"], max_time=8.0)
     sim_stats = aggregate_sim_stats(df_sim)
     
@@ -188,8 +189,13 @@ def main():
         target_mass=110.0,
     )
 
-    # Live Preview в сайдбаре
+    # Сайдбар: Live Preview и кнопка Руководства
     render_sidebar_preview(static_res, sim_stats)
+    
+    # Кнопка вызова руководства (вторичная кнопка)
+    st.sidebar.markdown("---")
+    if st.sidebar.button("📘 Руководство", type="secondary"):
+        show_manual()
 
     params_for_report = {
         "name": inputs["name"],
@@ -203,18 +209,16 @@ def main():
     # --------- UI ---------
     st.title(f"Digital Twin: {inputs['name']}")
 
-    # Кнопка сохранения конфигурации
     col_save, col_clear = st.columns([3, 1])
     with col_save:
         if st.button("💾 Сохранить конфигурацию"):
             save_configuration(inputs["name"], inputs, static_res, sim_stats, collision)
-            st.success(f"✅ Конфигурация '{inputs['name']}' сохранена")
+            st.success(f"Конфигурация '{inputs['name']}' сохранена")
     with col_clear:
         if st.button("🗑️ Очистить"):
             clear_saved_configs()
             st.rerun()
 
-    # Табы (добавлена вкладка Оптимизатор)
     tabs = st.tabs([
         "📊 Сводка",
         "⏱ Динамика",
@@ -226,20 +230,20 @@ def main():
         "📑 Паспорт"
     ])
 
-    with tabs[0]:  # Сводка
+    with tabs[0]:
         render_kpi_row(static_res, sim_stats, ROBOT_LIMIT_KG)
         st.markdown("---")
         render_weight_pie(static_res, base_drive_mass, base_elec_mass, base_frame_mass)
 
-    with tabs[1]:  # Динамика
+    with tabs[1]:
         st.subheader("Разгон и нагрузка на батарею")
         render_drive_plot(df_sim)
 
-    with tabs[2]:  # Тепло
+    with tabs[2]:
         st.subheader("Тепловой режим моторов")
         render_thermal_plot(df_sim)
 
-    with tabs[3]:  # Столкновение
+    with tabs[3]:
         st.subheader("Модель столкновения спиннера с целью 110 кг")
         col1, col2 = st.columns(2)
         with col1:
@@ -251,7 +255,7 @@ def main():
             st.metric("Перегрузка цели", f"{collision['g_force_target']:.1f} G")
             st.metric("Скорость отдачи", f"{collision['recoil_speed_kmh']:.1f} км/ч")
 
-    with tabs[4]:  # Анализ параметров
+    with tabs[4]:
         st.header("🔬 Параметрическое сканирование")
         st.markdown("Анализ влияния одного параметра на все характеристики робота.")
         
@@ -295,7 +299,7 @@ def main():
                 st.dataframe(df_scan.style.highlight_max(axis=0, subset=["speed_kmh", "weapon_energy_kj"])
                                          .highlight_min(axis=0, subset=["total_mass", "peak_current", "time_to_20"]))
 
-    with tabs[5]:  # Сравнение
+    with tabs[5]:
         st.header("⚖️ Side-by-Side сравнение")
         
         saved_configs = get_saved_configs()
@@ -340,7 +344,7 @@ def main():
                 comparison = get_comparison_data(config_a, config_b)
                 render_comparison_view(config_a, config_b, comparison)
 
-    with tabs[6]:  # Авто-оптимизатор (НОВЫЙ!)
+    with tabs[6]:
         st.header("🤖 Автоматическая оптимизация")
         st.markdown("Поиск оптимальных параметров на основе ваших целей и ограничений.")
         
@@ -397,7 +401,6 @@ def main():
                 progress_bar.progress(100)
                 status_text.success("✅ Оптимизация завершена!")
             
-            # Результаты
             optimized_params = parse_optimized_params(result)
             
             st.subheader("📊 Результаты оптимизации")
@@ -415,20 +418,16 @@ def main():
             with col_res2:
                 st.markdown("**Применить оптимизацию:**")
                 if st.button("✨ Применить параметры"):
-                    # Обновляем session_state для применения параметров
                     for key, value in optimized_params.items():
                         if key in st.session_state:
                             st.session_state[key] = value
                     st.success("Параметры применены! Перезагрузите страницу.")
                     st.rerun()
             
-            # График сходимости
             history = optimizer.get_history()
             render_optimization_progress(history)
             
-            # Сохранение оптимальной конфигурации
             if st.button("💾 Сохранить оптимальную конфигурацию"):
-                # Пересчитываем с оптимальными параметрами
                 opt_inputs = inputs.copy()
                 opt_inputs.update(optimized_params)
                 opt_static = run_static_calculations(opt_inputs)
@@ -457,7 +456,7 @@ def main():
                 )
                 st.success("Оптимальная конфигурация сохранена!")
 
-    with tabs[7]:  # Паспорт
+    with tabs[7]:
         st.subheader("Паспорт робота (Markdown)")
         with st.container(border=True):
             st.markdown(report_md)
@@ -467,6 +466,11 @@ def main():
             file_name="robot_passport.md",
             mime="text/markdown",
         )
+
+    # 2. Автозапуск руководства при первом визите (в конце отрисовки, чтобы не блокировать UI инициализацию)
+    if st.session_state.first_visit:
+        show_manual()
+        st.session_state.first_visit = False
 
 
 if __name__ == "__main__":
