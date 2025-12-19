@@ -273,6 +273,11 @@ def inject_global_css():
             box-shadow: {SHADOW_2};
         }}
         
+        /* Весь текст в preview белый */
+        .sidebar-preview * {{
+            color: white !important;
+        }}
+        
         .preview-label {{
             font-size: 0.75rem;
             font-weight: 600;
@@ -343,6 +348,7 @@ def render_kpi_row(static_res: Dict, sim_stats: Dict, total_mass_limit: float):
 
 
 def render_weight_pie(static_res: Dict, base_drive: float, base_elec: float, base_frame: float):
+    """Круговая диаграмма с белым текстом на долях и центрированной легендой."""
     mass_dict = {
         "Броня": static_res["armor_mass"],
         "Оружие": static_res["weapon_inertia"] * 10,
@@ -356,12 +362,30 @@ def render_weight_pie(static_res: Dict, base_drive: float, base_elec: float, bas
         df, values="Масса", names="Компонент", title="Весовой бюджет", hole=0.45,
         color_discrete_sequence=[PRIMARY, SECONDARY, PRIMARY_LIGHT, SECONDARY_LIGHT, "#B0BEC5"]
     )
-    fig.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color=SURFACE_BG, width=2)))
-    fig.update_layout(
-        paper_bgcolor=SURFACE_BG, plot_bgcolor=SURFACE_BG,
-        font=dict(family=FONT_FAMILY, color=TEXT_PRIMARY),
-        showlegend=True, legend=dict(orientation="h", y=-0.1)
+    
+    # Белый текст на долях диаграммы
+    fig.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        textfont=dict(color='white', size=14, family=FONT_FAMILY),
+        marker=dict(line=dict(color=SURFACE_BG, width=2))
     )
+    
+    # Центрирование легенды
+    fig.update_layout(
+        paper_bgcolor=SURFACE_BG,
+        plot_bgcolor=SURFACE_BG,
+        font=dict(family=FONT_FAMILY, color=TEXT_PRIMARY),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.15,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
     st.plotly_chart(fig, use_container_width=True)
 
 
