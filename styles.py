@@ -45,18 +45,70 @@ def inject_global_css():
             color: #fafafa;
         }
         
-        /* Стили для сравнения */
-        .comparison-card {
-            background-color: #1a1f2e;
-            border: 2px solid #3a4552;
+        /* Мини-превью в сайдбаре */
+        .sidebar-preview {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d1b3d 100%);
+            border: 2px solid #4a5f7f;
             border-radius: 12px;
             padding: 16px;
-            margin: 8px 0;
+            margin: 12px 0;
+        }
+        
+        .preview-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        
+        .preview-label {
+            font-size: 0.75rem;
+            color: #a8b2c1;
+            text-transform: uppercase;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_sidebar_preview(static_res: Dict, sim_stats: Dict):
+    """Мини-превью результатов прямо в сайдбаре (Live Preview)."""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### ⚡ Live Preview")
+    
+    # Используем HTML для красивого оформления
+    preview_html = f"""
+    <div class="sidebar-preview">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <div>
+                <div class="preview-label">Скорость</div>
+                <div class="preview-value">{static_res['speed_kmh']:.1f} км/ч</div>
+            </div>
+            <div>
+                <div class="preview-label">Масса</div>
+                <div class="preview-value">{static_res['total_mass']:.1f} кг</div>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+            <div>
+                <div class="preview-label">Энергия</div>
+                <div class="preview-value">{static_res['weapon_energy']/1000:.1f} кДж</div>
+            </div>
+            <div>
+                <div class="preview-label">Ток пик</div>
+                <div class="preview-value">{sim_stats.get('peak_current', 0):.0f} А</div>
+            </div>
+        </div>
+    </div>
+    """
+    st.sidebar.markdown(preview_html, unsafe_allow_html=True)
+    
+    # Индикатор массы (прогресс-бар)
+    mass_percent = (static_res['total_mass'] / 110.0) * 100
+    if mass_percent > 100:
+        st.sidebar.error(f"⚠️ Перевес: {static_res['total_mass'] - 110:.1f} кг")
+    else:
+        st.sidebar.progress(mass_percent / 100, text=f"Использовано: {mass_percent:.1f}%")
 
 
 def render_kpi_row(static_res: Dict, sim_stats: Dict, total_mass_limit: float):
@@ -77,7 +129,7 @@ def render_weight_pie(static_res: Dict, base_drive: float,
                       base_elec: float, base_frame: float):
     mass_dict = {
         "Броня": static_res["armor_mass"],
-        "Оружие (ротор)": static_res["weapon_inertia"] * 10,  # масштаб для визуализации
+        "Оружие (ротор)": static_res["weapon_inertia"] * 10,
         "Ходовая": base_drive,
         "Электроника": base_elec,
         "Рама": base_frame,
@@ -155,15 +207,9 @@ def render_thermal_plot(df_sim: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-# --- НОВЫЕ ФУНКЦИИ ДЛЯ АНАЛИЗА ---
-
 def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_unit: str):
     """Визуализация результатов параметрического сканирования."""
-    
-    # 4 графика в 2x2
     fig = go.Figure()
-    
-    # График 1: Скорость
     fig.add_trace(go.Scatter(
         x=df_scan["param_value"],
         y=df_scan["speed_kmh"],
@@ -180,7 +226,6 @@ def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_un
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    # График 2-4 в колонках
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -231,7 +276,6 @@ def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_un
 
 def render_comparison_view(config_a: Dict, config_b: Dict, comparison: Dict):
     """Side-by-side сравнение двух конфигураций."""
-    
     col_a, col_b = st.columns(2)
     
     with col_a:
@@ -269,3 +313,27 @@ def render_comparison_view(config_a: Dict, config_b: Dict, comparison: Dict):
             f"{config_b['g_force_self']:.1f} G",
             f"{comparison['g_force_self']['delta']:+.1f} ({comparison['g_force_self']['delta_pct']:+.1f}%)"
         )
+
+
+def render_optimization_progress(history: list):
+    """Визуализация прогресса оптимизации."""
+    if not history:
+        return
+    
+    df_hist = pd.DataFrame(history)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        y=df_hist["score"],
+        mode="lines+markers",
+        name="Objective Score",
+        line=dict(color="cyan", width=2)
+    ))
+    
+    fig.update_layout(
+        title="Сходимость оптимизации",
+        xaxis_title="Итерация",
+        yaxis_title="Целевая функция (меньше = лучше)",
+        showlegend=False
+    )
+    st.plotly_chart(fig, use_container_width=True)
