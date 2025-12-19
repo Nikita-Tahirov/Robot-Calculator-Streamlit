@@ -492,3 +492,37 @@ def render_optimization_progress(history: list):
     fig.add_trace(go.Scatter(y=df["score"], mode="lines+markers", line=dict(color=PRIMARY, width=2)))
     _apply_theme(fig, "Сходимость", "Итерация", "Целевая функция")
     st.plotly_chart(fig, use_container_width=True)
+
+def render_monte_carlo_plot(df_mc: pd.DataFrame, metric_col: str, title: str, unit: str):
+    """Отрисовка гистограммы распределения (Монте-Карло)."""
+    fig = px.histogram(
+        df_mc, 
+        x=metric_col, 
+        nbins=20,
+        title=title,
+        color_discrete_sequence=[PRIMARY],
+        opacity=0.8
+    )
+    
+    mean_val = df_mc[metric_col].mean()
+    std_val = df_mc[metric_col].std()
+    
+    # Линия среднего
+    fig.add_vline(x=mean_val, line_dash="dash", line_color=WARNING, annotation_text="Среднее")
+    
+    # Доверительный интервал (±2 sigma, ~95%)
+    fig.add_vrect(
+        x0=mean_val - 2*std_val, 
+        x1=mean_val + 2*std_val, 
+        fillcolor=SUCCESS, 
+        opacity=0.1, 
+        layer="below", 
+        line_width=0,
+        annotation_text="95% вероятности", 
+        annotation_position="top left"
+    )
+    
+    _apply_theme(fig, title, f"{title} ({unit})", "Количество исходов")
+    st.plotly_chart(fig, use_container_width=True)
+    
+    return mean_val, std_val
