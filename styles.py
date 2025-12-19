@@ -18,9 +18,40 @@ def inject_global_css():
     st.markdown(
         """
         <style>
-        .main { background-color: #0c0f13; }
-        .stMetric { background-color: #151922; border-radius: 8px; padding: 6px; }
-        h1, h2, h3, h4 { color: #fafafa; }
+        /* Убираем агрессивный темный фон, оставляем дефолтный Streamlit */
+        .stMetric {
+            background-color: #1e2836;  /* Более светлый серо-синий */
+            border: 1px solid #3a4552;  /* Легкая рамка для структуры */
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Увеличиваем контраст текста метрик */
+        .stMetric label {
+            color: #a8b2c1 !important;
+            font-size: 0.9rem;
+        }
+        
+        .stMetric [data-testid="stMetricValue"] {
+            color: #ffffff !important;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .stMetric [data-testid="stMetricDelta"] {
+            color: #6dd4a8 !important;
+        }
+        
+        /* Заголовки */
+        h1, h2, h3, h4 {
+            color: #fafafa;
+        }
+        
+        /* Контейнеры с рамкой */
+        [data-testid="stVerticalBlock"] > div:has(> div.stMarkdown) {
+            padding: 8px;
+        }
         </style>
         """,
         unsafe_allow_html=True,
