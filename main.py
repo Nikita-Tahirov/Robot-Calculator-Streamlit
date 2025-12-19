@@ -206,11 +206,11 @@ def main():
     # Кнопка сохранения конфигурации
     col_save, col_clear = st.columns([3, 1])
     with col_save:
-        if st.button("💾 Сохранить текущую конфигурацию"):
+        if st.button("💾 Сохранить конфигурацию"):
             save_configuration(inputs["name"], inputs, static_res, sim_stats, collision)
-            st.success(f"✅ Конфигурация '{inputs['name']}' сохранена!")
+            st.success(f"✅ Конфигурация '{inputs['name']}' сохранена")
     with col_clear:
-        if st.button("🗑️ Очистить все"):
+        if st.button("🗑️ Очистить"):
             clear_saved_configs()
             st.rerun()
 
