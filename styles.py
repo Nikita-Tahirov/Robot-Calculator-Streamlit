@@ -18,16 +18,14 @@ def inject_global_css():
     st.markdown(
         """
         <style>
-        /* Убираем агрессивный темный фон, оставляем дефолтный Streamlit */
         .stMetric {
-            background-color: #1e2836;  /* Более светлый серо-синий */
-            border: 1px solid #3a4552;  /* Легкая рамка для структуры */
+            background-color: #1e2836;
+            border: 1px solid #3a4552;
             border-radius: 10px;
             padding: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
-        /* Увеличиваем контраст текста метрик */
         .stMetric label {
             color: #a8b2c1 !important;
             font-size: 0.9rem;
@@ -43,14 +41,17 @@ def inject_global_css():
             color: #6dd4a8 !important;
         }
         
-        /* Заголовки */
         h1, h2, h3, h4 {
             color: #fafafa;
         }
         
-        /* Контейнеры с рамкой */
-        [data-testid="stVerticalBlock"] > div:has(> div.stMarkdown) {
-            padding: 8px;
+        /* Стили для сравнения */
+        .comparison-card {
+            background-color: #1a1f2e;
+            border: 2px solid #3a4552;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 8px 0;
         }
         </style>
         """,
@@ -76,7 +77,7 @@ def render_weight_pie(static_res: Dict, base_drive: float,
                       base_elec: float, base_frame: float):
     mass_dict = {
         "Броня": static_res["armor_mass"],
-        "Оружие (ротор)": static_res["weapon_inertia"],  # условно
+        "Оружие (ротор)": static_res["weapon_inertia"] * 10,  # масштаб для визуализации
         "Ходовая": base_drive,
         "Электроника": base_elec,
         "Рама": base_frame,
@@ -152,3 +153,119 @@ def render_thermal_plot(df_sim: pd.DataFrame):
         yaxis_title="Температура (°C)",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+# --- НОВЫЕ ФУНКЦИИ ДЛЯ АНАЛИЗА ---
+
+def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_unit: str):
+    """Визуализация результатов параметрического сканирования."""
+    
+    # 4 графика в 2x2
+    fig = go.Figure()
+    
+    # График 1: Скорость
+    fig.add_trace(go.Scatter(
+        x=df_scan["param_value"],
+        y=df_scan["speed_kmh"],
+        name="Скорость",
+        line=dict(color="cyan", width=3),
+        mode="lines+markers"
+    ))
+    
+    fig.update_layout(
+        title=f"Зависимость скорости от {param_name}",
+        xaxis_title=f"{param_name} ({param_unit})",
+        yaxis_title="Скорость (км/ч)",
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # График 2-4 в колонках
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(
+            x=df_scan["param_value"],
+            y=df_scan["total_mass"],
+            line=dict(color="orange", width=2),
+            mode="lines+markers"
+        ))
+        fig2.update_layout(
+            title="Масса",
+            xaxis_title=f"{param_name}",
+            yaxis_title="кг"
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+    
+    with col2:
+        fig3 = go.Figure()
+        fig3.add_trace(go.Scatter(
+            x=df_scan["param_value"],
+            y=df_scan["peak_current"],
+            line=dict(color="red", width=2),
+            mode="lines+markers"
+        ))
+        fig3.update_layout(
+            title="Пиковый ток",
+            xaxis_title=f"{param_name}",
+            yaxis_title="А"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+    
+    with col3:
+        fig4 = go.Figure()
+        fig4.add_trace(go.Scatter(
+            x=df_scan["param_value"],
+            y=df_scan["time_to_20"],
+            line=dict(color="green", width=2),
+            mode="lines+markers"
+        ))
+        fig4.update_layout(
+            title="Время 0-20 км/ч",
+            xaxis_title=f"{param_name}",
+            yaxis_title="сек"
+        )
+        st.plotly_chart(fig4, use_container_width=True)
+
+
+def render_comparison_view(config_a: Dict, config_b: Dict, comparison: Dict):
+    """Side-by-side сравнение двух конфигураций."""
+    
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.markdown(f"### 🔵 {config_a['name']}")
+        st.metric("Скорость", f"{config_a['speed_kmh']:.1f} км/ч")
+        st.metric("Масса", f"{config_a['total_mass']:.1f} кг")
+        st.metric("Энергия удара", f"{config_a['weapon_energy_kj']:.1f} кДж")
+        st.metric("Пиковый ток", f"{config_a['peak_current']:.0f} А")
+        st.metric("Перегрузка", f"{config_a['g_force_self']:.1f} G")
+    
+    with col_b:
+        st.markdown(f"### 🟢 {config_b['name']}")
+        st.metric(
+            "Скорость",
+            f"{config_b['speed_kmh']:.1f} км/ч",
+            f"{comparison['speed_kmh']['delta']:+.1f} ({comparison['speed_kmh']['delta_pct']:+.1f}%)"
+        )
+        st.metric(
+            "Масса",
+            f"{config_b['total_mass']:.1f} кг",
+            f"{comparison['total_mass']['delta']:+.1f} ({comparison['total_mass']['delta_pct']:+.1f}%)"
+        )
+        st.metric(
+            "Энергия удара",
+            f"{config_b['weapon_energy_kj']:.1f} кДж",
+            f"{comparison['weapon_energy_kj']['delta']:+.1f} ({comparison['weapon_energy_kj']['delta_pct']:+.1f}%)"
+        )
+        st.metric(
+            "Пиковый ток",
+            f"{config_b['peak_current']:.0f} А",
+            f"{comparison['peak_current']['delta']:+.0f} ({comparison['peak_current']['delta_pct']:+.1f}%)"
+        )
+        st.metric(
+            "Перегрузка",
+            f"{config_b['g_force_self']:.1f} G",
+            f"{comparison['g_force_self']['delta']:+.1f} ({comparison['g_force_self']['delta_pct']:+.1f}%)"
+        )
