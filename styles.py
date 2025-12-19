@@ -7,7 +7,7 @@ from theme_config import *
 
 
 def setup_page():
-    """Настройка страницы с светлой темой."""
+    """Настройка страницы с принудительной светлой темой."""
     st.set_page_config(
         page_title="Цифровой двойник: 1T Rex",
         page_icon="🦖",
@@ -17,73 +17,236 @@ def setup_page():
 
 
 def inject_global_css():
-    """Глобальные стили Material Design 3 (светлая тема)."""
+    """Глобальные стили с форсированием светлой темы (перекрывает системную темную тему)."""
     st.markdown(
         f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
+        /* === ФОРСИРУЕМ СВЕТЛУЮ ТЕМУ === */
+        /* Перекрываем системные настройки браузера */
+        :root {{
+            color-scheme: light !important;
+        }}
+        
         * {{
             font-family: {FONT_FAMILY};
+            color-scheme: light !important;
+        }}
+        
+        /* Все фоны принудительно белые/светлые */
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
+            background-color: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
         }}
         
         .main {{
-            background-color: {SURFACE_BG};
+            background-color: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        .main .block-container {{
+            background-color: {SURFACE_BG} !important;
         }}
         
         /* Сайдбар */
         section[data-testid="stSidebar"] {{
-            background-color: {SIDEBAR_BG};
-            border-right: 1px solid {OUTLINE};
+            background-color: {SIDEBAR_BG} !important;
+            border-right: 1px solid {OUTLINE} !important;
+            color: {TEXT_PRIMARY} !important;
         }}
         
-        /* Типографика */
+        section[data-testid="stSidebar"] > div {{
+            background-color: {SIDEBAR_BG} !important;
+            padding-top: 2rem;
+        }}
+        
+        section[data-testid="stSidebar"] * {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        /* === ТИПОГРАФИКА === */
         h1, h2, h3, h4, h5, h6 {{
-            color: {TEXT_PRIMARY};
+            color: {TEXT_PRIMARY} !important;
             font-weight: 600;
             letter-spacing: -0.02em;
         }}
         
-        p, label, span {{ color: {TEXT_PRIMARY}; }}
+        p, label, span, div {{
+            color: {TEXT_PRIMARY} !important;
+        }}
         
-        /* Метрики */
+        /* === МЕТРИКИ === */
         [data-testid="stMetric"] {{
-            background: {SURFACE_VARIANT};
-            border: 1px solid {OUTLINE};
+            background: {SURFACE_VARIANT} !important;
+            border: 1px solid {OUTLINE} !important;
             border-radius: {RADIUS_MEDIUM};
             padding: 1.25rem;
             box-shadow: {SHADOW_1};
         }}
         
         [data-testid="stMetric"] label {{
-            color: {TEXT_SECONDARY};
+            color: {TEXT_SECONDARY} !important;
             font-size: 0.875rem;
         }}
         
         [data-testid="stMetric"] [data-testid="stMetricValue"] {{
-            color: {PRIMARY};
+            color: {PRIMARY} !important;
             font-size: 2rem;
             font-weight: 700;
         }}
         
-        /* Кнопки */
+        [data-testid="stMetric"] [data-testid="stMetricDelta"] {{
+            color: {SUCCESS} !important;
+        }}
+        
+        /* === КНОПКИ === */
         .stButton > button {{
-            background: {PRIMARY};
-            color: white;
-            border: none;
+            background: {PRIMARY} !important;
+            color: white !important;
+            border: none !important;
             border-radius: {RADIUS_PILL};
             padding: 0.75rem 1.5rem;
             font-weight: 600;
+            box-shadow: {SHADOW_1};
         }}
         
         .stButton > button:hover {{
-            background: {PRIMARY_DARK};
+            background: {PRIMARY_DARK} !important;
             transform: translateY(-1px);
         }}
         
-        /* Live Preview */
+        /* === ТАБЫ === */
+        .stTabs [data-baseweb="tab-list"] {{
+            background-color: {SURFACE_BG} !important;
+            border-bottom: 2px solid {OUTLINE} !important;
+        }}
+        
+        .stTabs [data-baseweb="tab"] {{
+            background: transparent !important;
+            color: {TEXT_SECONDARY} !important;
+            font-weight: 500;
+        }}
+        
+        .stTabs [aria-selected="true"] {{
+            color: {PRIMARY} !important;
+            border-bottom: 3px solid {PRIMARY} !important;
+            font-weight: 600;
+        }}
+        
+        /* === ИНПУТЫ === */
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stSelectbox > div > div {{
+            background: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
+            border: 1px solid {OUTLINE} !important;
+            border-radius: {RADIUS_SMALL};
+        }}
+        
+        .stSelectbox {{
+            background-color: {SURFACE_BG} !important;
+        }}
+        
+        .stSelectbox [data-baseweb="select"] {{
+            background-color: {SURFACE_BG} !important;
+        }}
+        
+        /* Dropdown меню */
+        [data-baseweb="popover"] {{
+            background-color: {SURFACE_BG} !important;
+        }}
+        
+        [role="listbox"] {{
+            background-color: {SURFACE_BG} !important;
+        }}
+        
+        [role="option"] {{
+            background-color: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        [role="option"]:hover {{
+            background-color: {SURFACE_VARIANT} !important;
+        }}
+        
+        /* === СЛАЙДЕРЫ === */
+        .stSlider {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        .stSlider [data-testid="stTickBar"] > div {{
+            background: {OUTLINE} !important;
+        }}
+        
+        .stSlider [data-baseweb="slider"] {{
+            background: transparent !important;
+        }}
+        
+        /* === CHECKBOX === */
+        .stCheckbox {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        .stCheckbox label {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        /* === ПРОГРЕСС БАР === */
+        .stProgress > div > div > div {{
+            background-color: {OUTLINE} !important;
+        }}
+        
+        .stProgress > div > div > div > div {{
+            background-color: {PRIMARY} !important;
+        }}
+        
+        /* === MARKDOWN === */
+        .stMarkdown {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        /* === DATAFRAME === */
+        [data-testid="stDataFrame"] {{
+            background-color: {SURFACE_BG} !important;
+        }}
+        
+        .dataframe {{
+            background-color: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        .dataframe th {{
+            background-color: {SURFACE_VARIANT} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        .dataframe td {{
+            background-color: {SURFACE_BG} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        /* === EXPANDER === */
+        .streamlit-expanderHeader {{
+            background-color: {SURFACE_VARIANT} !important;
+            color: {TEXT_PRIMARY} !important;
+            border: 1px solid {OUTLINE} !important;
+        }}
+        
+        .streamlit-expanderContent {{
+            background-color: {SURFACE_BG} !important;
+            border: 1px solid {OUTLINE} !important;
+        }}
+        
+        /* === ALERTS === */
+        [data-baseweb="notification"] {{
+            background-color: {SURFACE_VARIANT} !important;
+            color: {TEXT_PRIMARY} !important;
+        }}
+        
+        /* === LIVE PREVIEW === */
         .sidebar-preview {{
-            background: linear-gradient(135deg, {PRIMARY} 0%, {PRIMARY_DARK} 100%);
+            background: linear-gradient(135deg, {PRIMARY} 0%, {PRIMARY_DARK} 100%) !important;
             border-radius: {RADIUS_LARGE};
             padding: 1.25rem;
             margin: 1rem 0;
@@ -93,14 +256,19 @@ def inject_global_css():
         .preview-label {{
             font-size: 0.75rem;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.8) !important;
             text-transform: uppercase;
         }}
         
         .preview-value {{
             font-size: 1.5rem;
             font-weight: 700;
-            color: white;
+            color: white !important;
+        }}
+        
+        /* === SPINNER === */
+        .stSpinner > div {{
+            border-top-color: {PRIMARY} !important;
         }}
         </style>
         """,
@@ -178,7 +346,7 @@ def render_weight_pie(static_res: Dict, base_drive: float, base_elec: float, bas
 
 
 def _apply_theme(fig, title, xlabel, ylabel):
-    """Применение темы к графику."""
+    """Применение светлой темы к графику."""
     fig.update_layout(
         paper_bgcolor=SURFACE_BG,
         plot_bgcolor=SURFACE_BG,
@@ -203,29 +371,21 @@ def _apply_theme(fig, title, xlabel, ylabel):
 
 def render_drive_plot(df_sim: pd.DataFrame):
     fig = go.Figure()
-    
-    # Скорость
     fig.add_trace(go.Scatter(
         x=df_sim["t"], y=df_sim["v_kmh"], name="Скорость",
         line=dict(color=PRIMARY, width=3), yaxis="y1"
     ))
-    
-    # Ток
     fig.add_trace(go.Scatter(
         x=df_sim["t"], y=df_sim["I_bat"], name="Ток",
         line=dict(color=WARNING, width=2, dash="dot"), yaxis="y2"
     ))
     
     _apply_theme(fig, "Разгон и нагрузка", "Время (с)", "Скорость (км/ч)")
-    
-    # Настройка второй оси Y корректно
     fig.update_layout(
         yaxis2=dict(
             title=dict(text="Ток (А)", font=dict(color=WARNING)),
-            overlaying="y",
-            side="right",
-            gridcolor=OUTLINE,
-            zerolinecolor=OUTLINE_VARIANT
+            overlaying="y", side="right",
+            gridcolor=OUTLINE, zerolinecolor=OUTLINE_VARIANT
         ),
         legend=dict(x=0.02, y=0.98, bgcolor="rgba(255,255,255,0.8)")
     )
@@ -253,7 +413,6 @@ def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_un
     st.plotly_chart(fig, use_container_width=True)
     
     col1, col2, col3 = st.columns(3)
-    
     for col, key, title, color in [
         (col1, "total_mass", "Масса (кг)", SECONDARY),
         (col2, "peak_current", "Ток (А)", WARNING),
