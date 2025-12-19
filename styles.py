@@ -3,11 +3,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from typing import Dict
+from theme_config import *
 
 
 def setup_page():
+    """Настройка страницы с светлой темой."""
     st.set_page_config(
-        page_title="Digital Twin: 1T Rex",
+        page_title="Цифровой двойник: 1T Rex",
         page_icon="🦖",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -15,341 +17,327 @@ def setup_page():
 
 
 def inject_global_css():
+    """Глобальные стили Material Design 3 (светлая тема)."""
     st.markdown(
-        """
+        f"""
         <style>
-        /* --- ИМПОРТ ШРИФТОВ --- */
-        @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&family=Raleway:wght@300;400;500;600;700&display=swap');
-
-        /* --- CSS ПЕРЕМЕННЫЕ --- */
-        :root {
-            --bg-color: #05020a;
-            --text-main: #ffffff;
-            --text-secondary: #c0bdd0;
-            --text-tertiary: #7a7788;
-            
-            --accent-primary: #d50085; 
-            --accent-secondary: #0099ff; 
-            --accent-gradient: linear-gradient(270deg, #d50085 0%, #0099ff 100%);
-            
-            --surface-bg: rgba(20, 15, 35, 0.35);
-            --surface-border: rgba(255, 255, 255, 0.08);
-            --surface-glow: rgba(0, 153, 255, 0.1);
-            
-            --font-head: 'Unbounded', sans-serif;
-            --font-body: 'Raleway', sans-serif;
-        }
-
-        /* --- СБРОС STREAMLIT СТИЛЕЙ --- */
-        .stApp {
-            background-color: var(--bg-color) !important;
-            background-image: radial-gradient(circle at 50% 0%, #1a0b2e 0%, #05020a 70%) !important;
-            background-attachment: fixed;
-            font-family: var(--font-body) !important;
-            color: var(--text-main) !important;
-        }
-
-        /* Убираем лишние отступы */
-        .block-container {
-            padding-top: 3rem !important;
-            padding-bottom: 2rem !important;
-        }
-
-        /* --- ТИПОГРАФИКА --- */
-        h1, h2, h3, h4, h5, h6 {
-            font-family: var(--font-head) !important;
-            color: var(--text-main) !important;
-            font-weight: 600 !important;
-            letter-spacing: -0.01em !important;
-        }
+        /* === ОБЩИЕ СТИЛИ === */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
-        /* Главный заголовок с градиентом */
-        h1 {
-            background: var(--accent-gradient) !important;
-            background-size: 200% 200% !important;
-            -webkit-background-clip: text !important;
-            -webkit-text-fill-color: transparent !important;
-            background-clip: text !important;
-            animation: gradient-shift 8s ease infinite;
-        }
-
-        @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-
-        /* Заголовки в сайдбаре */
-        section[data-testid="stSidebar"] h1,
-        section[data-testid="stSidebar"] h2,
-        section[data-testid="stSidebar"] h3,
-        section[data-testid="stSidebar"] h4 {
-            color: var(--text-main) !important;
-            font-size: 1rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-
-        /* Обычный текст */
-        p, span, div, label {
-            font-family: var(--font-body) !important;
-            color: var(--text-secondary) !important;
-        }
-
-        /* --- САЙДБАР (GLASSMORPHISM) --- */
-        section[data-testid="stSidebar"] {
-            background: rgba(5, 2, 10, 0.7) !important;
-            backdrop-filter: blur(20px) !important;
-            -webkit-backdrop-filter: blur(20px) !important;
-            border-right: 1px solid var(--surface-border) !important;
-        }
-
-        section[data-testid="stSidebar"] > div {
-            background-color: transparent !important;
-        }
-
-        /* --- МЕТРИКИ (KPI КАРТОЧКИ) --- */
-        div[data-testid="stMetric"] {
-            background: var(--surface-bg) !important;
-            backdrop-filter: blur(15px) !important;
-            -webkit-backdrop-filter: blur(15px) !important;
-            border: 1px solid var(--surface-border) !important;
-            border-radius: 16px !important;
-            padding: 20px !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        }
+        * {{
+            font-family: {FONT_FAMILY};
+        }}
         
-        div[data-testid="stMetric"]:hover {
-            transform: translateY(-3px) !important;
-            border-color: var(--accent-secondary) !important;
-            box-shadow: 0 8px 30px var(--surface-glow) !important;
-        }
-
-        /* Лейблы метрик (КАПИТЕЛЬ) */
-        div[data-testid="stMetric"] label {
-            font-family: var(--font-body) !important;
-            color: var(--text-tertiary) !important;
-            font-size: 0.75rem !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.12em !important;
-            font-weight: 600 !important;
-            margin-bottom: 8px !important;
-        }
+        .main {{
+            background-color: {SURFACE_BG};
+        }}
         
-        /* Значения метрик */
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            font-family: var(--font-head) !important;
-            color: var(--text-main) !important;
-            font-size: 2.2rem !important;
-            font-weight: 700 !important;
-            line-height: 1.2 !important;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.1) !important;
-        }
+        /* Сайдбар */
+        section[data-testid="stSidebar"] {{
+            background-color: {SIDEBAR_BG};
+            border-right: 1px solid {OUTLINE};
+        }}
         
-        /* Дельта метрик */
-        div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
-            font-family: var(--font-head) !important;
-            font-size: 0.85rem !important;
-            font-weight: 500 !important;
-        }
-
-        /* --- КНОПКИ --- */
-        .stButton button {
-            background: transparent !important;
-            border: 1.5px solid var(--accent-secondary) !important;
-            color: var(--accent-secondary) !important;
-            font-family: var(--font-head) !important;
-            font-size: 0.8rem !important;
-            font-weight: 500 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.08em !important;
-            border-radius: 10px !important;
-            padding: 0.6rem 1.2rem !important;
-            transition: all 0.3s ease !important;
-            position: relative !important;
-            overflow: hidden !important;
-        }
+        section[data-testid="stSidebar"] > div {{
+            padding-top: 2rem;
+        }}
         
-        .stButton button:before {
-            content: '' !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: -100% !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: var(--accent-gradient) !important;
-            transition: left 0.3s ease !important;
-            z-index: -1 !important;
-        }
+        /* === ТИПОГРАФИКА === */
+        h1, h2, h3, h4, h5, h6 {{
+            color: {TEXT_PRIMARY};
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }}
         
-        .stButton button:hover {
-            color: #000 !important;
-            border-color: transparent !important;
-            box-shadow: 0 0 25px rgba(0, 153, 255, 0.6) !important;
-        }
+        h1 {{
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }}
         
-        .stButton button:hover:before {
-            left: 0 !important;
-        }
+        h2 {{
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }}
         
-        .stButton button:active {
-            transform: scale(0.97) !important;
-        }
-
-        /* --- ТАБЫ --- */
-        .stTabs {
-            background: transparent !important;
-        }
-
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 6px !important;
-            background-color: transparent !important;
-            border-bottom: 1px solid var(--surface-border) !important;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            background: rgba(255, 255, 255, 0.02) !important;
-            backdrop-filter: blur(5px) !important;
-            border: 1px solid transparent !important;
-            border-radius: 10px 10px 0 0 !important;
-            color: var(--text-tertiary) !important;
-            font-family: var(--font-body) !important;
-            font-size: 0.85rem !important;
-            font-weight: 500 !important;
-            padding: 10px 18px !important;
-            transition: all 0.2s ease !important;
-        }
-
-        .stTabs [data-baseweb="tab"]:hover {
-            background: rgba(255, 255, 255, 0.05) !important;
-            color: var(--text-main) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, rgba(213, 0, 133, 0.15), rgba(0, 153, 255, 0.15)) !important;
-            border: 1px solid rgba(213, 0, 133, 0.4) !important;
-            border-bottom-color: transparent !important;
-            color: #fff !important;
-            font-weight: 600 !important;
-            box-shadow: 0 -2px 15px rgba(213, 0, 133, 0.2) !important;
-        }
-
-        /* --- ИНПУТЫ И СЕЛЕКТЫ --- */
-        .stTextInput input, .stNumberInput input {
-            background-color: rgba(0, 0, 0, 0.4) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            border-radius: 10px !important;
-            color: var(--text-main) !important;
-            font-family: var(--font-body) !important;
-            padding: 0.6rem 0.8rem !important;
-            transition: all 0.2s ease !important;
-        }
-
-        .stTextInput input:focus, .stNumberInput input:focus {
-            border-color: var(--accent-secondary) !important;
-            box-shadow: 0 0 0 1px var(--accent-secondary) !important;
-            outline: none !important;
-        }
-
-        /* Селекты */
-        div[data-baseweb="select"] > div {
-            background-color: rgba(0, 0, 0, 0.4) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            border-radius: 10px !important;
-            color: var(--text-main) !important;
-        }
-
-        div[data-baseweb="select"] > div:hover {
-            border-color: rgba(255, 255, 255, 0.25) !important;
-        }
-
-        /* --- СЛАЙДЕРЫ --- */
-        div[data-baseweb="slider"] {
-            padding-top: 0.5rem !important;
-            padding-bottom: 1rem !important;
-        }
-
-        /* Трек слайдера */
-        div[data-baseweb="slider"] [role="slider"] {
-            background: var(--accent-gradient) !important;
-            box-shadow: 0 0 15px rgba(213, 0, 133, 0.5) !important;
-            width: 18px !important;
-            height: 18px !important;
-        }
-
-        div[data-baseweb="slider"] [role="slider"]:hover {
-            box-shadow: 0 0 25px rgba(213, 0, 133, 0.8) !important;
-        }
-
-        /* Линия слайдера */
-        div[data-baseweb="slider"] > div > div {
-            background: rgba(255, 255, 255, 0.1) !important;
-        }
-
-        /* Заполненная часть */
-        div[data-baseweb="slider"] > div > div > div {
-            background: var(--accent-gradient) !important;
-        }
-
-        /* --- ПРОГРЕСС-БАР --- */
-        .stProgress > div > div > div {
-            background: var(--accent-gradient) !important;
-        }
-
-        /* --- EXPANDER (АККОРДЕОН) --- */
-        div[data-testid="stExpander"] {
-            background: var(--surface-bg) !important;
-            backdrop-filter: blur(10px) !important;
-            border: 1px solid var(--surface-border) !important;
-            border-radius: 12px !important;
-        }
-
-        div[data-testid="stExpander"] summary {
-            color: var(--text-main) !important;
-            font-weight: 600 !important;
-        }
-
-        /* --- DATAFRAME --- */
-        div[data-testid="stDataFrame"] {
-            background: var(--surface-bg) !important;
-            backdrop-filter: blur(10px) !important;
-            border: 1px solid var(--surface-border) !important;
-            border-radius: 12px !important;
-        }
-
-        /* --- КАСТОМНЫЕ КЛАССЫ --- */
-        .sidebar-preview {
-            background: linear-gradient(145deg, rgba(30, 20, 60, 0.5), rgba(10, 5, 30, 0.7)) !important;
-            backdrop-filter: blur(15px) !important;
-            border: 1px solid rgba(0, 153, 255, 0.25) !important;
-            border-radius: 14px !important;
-            padding: 20px !important;
-            margin: 15px 0 !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-        }
+        h3 {{
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+        }}
         
-        .preview-value {
-            font-family: var(--font-head) !important;
-            font-size: 1.5rem !important;
-            font-weight: 700 !important;
-            color: #00d4ff !important;
-            text-shadow: 0 0 12px rgba(0, 212, 255, 0.5) !important;
-        }
+        p, label, span {{
+            color: {TEXT_PRIMARY};
+        }}
         
-        .preview-label {
-            font-family: var(--font-body) !important;
-            font-size: 0.7rem !important;
-            color: var(--text-tertiary) !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.1em !important;
-            margin-bottom: 6px !important;
-        }
-
-        /* --- УБИРАЕМ ЛИШНЕЕ --- */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-
+        /* === МЕТРИКИ (КАРТОЧКИ) === */
+        [data-testid="stMetric"] {{
+            background: {SURFACE_VARIANT};
+            border: 1px solid {OUTLINE};
+            border-radius: {RADIUS_MEDIUM};
+            padding: 1.25rem;
+            box-shadow: {SHADOW_1};
+            transition: all 0.2s ease;
+        }}
+        
+        [data-testid="stMetric"]:hover {{
+            box-shadow: {SHADOW_2};
+            transform: translateY(-2px);
+        }}
+        
+        [data-testid="stMetric"] label {{
+            color: {TEXT_SECONDARY};
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+        }}
+        
+        [data-testid="stMetric"] [data-testid="stMetricValue"] {{
+            color: {PRIMARY};
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }}
+        
+        [data-testid="stMetric"] [data-testid="stMetricDelta"] {{
+            font-size: 0.875rem;
+            font-weight: 500;
+        }}
+        
+        /* Цвета дельт */
+        [data-testid="stMetricDelta"][data-delta-color="normal"] {{
+            color: {SUCCESS};
+        }}
+        
+        [data-testid="stMetricDelta"][data-delta-color="inverse"] {{
+            color: {ERROR};
+        }}
+        
+        /* === КНОПКИ === */
+        .stButton > button {{
+            background: {PRIMARY};
+            color: white;
+            border: none;
+            border-radius: {RADIUS_PILL};
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.9375rem;
+            box-shadow: {SHADOW_1};
+            transition: all 0.2s ease;
+            text-transform: none;
+        }}
+        
+        .stButton > button:hover {{
+            background: {PRIMARY_DARK};
+            box-shadow: {SHADOW_2};
+            transform: translateY(-1px);
+        }}
+        
+        .stButton > button:active {{
+            transform: translateY(0);
+        }}
+        
+        /* Вторичные кнопки (через custom class) */
+        .stButton.secondary > button {{
+            background: transparent;
+            color: {PRIMARY};
+            border: 2px solid {PRIMARY};
+            box-shadow: none;
+        }}
+        
+        .stButton.secondary > button:hover {{
+            background: rgba(0, 97, 164, 0.08);
+        }}
+        
+        /* === ТАБЫ === */
+        .stTabs {{
+            background: transparent;
+        }}
+        
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 0.5rem;
+            border-bottom: 2px solid {OUTLINE};
+        }}
+        
+        .stTabs [data-baseweb="tab"] {{
+            background: transparent;
+            border: none;
+            color: {TEXT_SECONDARY};
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border-radius: {RADIUS_SMALL} {RADIUS_SMALL} 0 0;
+            transition: all 0.2s ease;
+        }}
+        
+        .stTabs [data-baseweb="tab"]:hover {{
+            background: rgba(0, 97, 164, 0.04);
+            color: {PRIMARY};
+        }}
+        
+        .stTabs [aria-selected="true"] {{
+            background: transparent;
+            color: {PRIMARY};
+            border-bottom: 3px solid {PRIMARY};
+            font-weight: 600;
+        }}
+        
+        /* === ИНПУТЫ === */
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stSelectbox > div > div {{
+            border: 1px solid {OUTLINE};
+            border-radius: {RADIUS_SMALL};
+            background: {SURFACE_BG};
+            color: {TEXT_PRIMARY};
+            padding: 0.625rem 0.875rem;
+            transition: all 0.2s ease;
+        }}
+        
+        .stTextInput > div > div > input:focus,
+        .stNumberInput > div > div > input:focus {{
+            border-color: {PRIMARY};
+            box-shadow: 0 0 0 3px rgba(0, 97, 164, 0.1);
+            outline: none;
+        }}
+        
+        /* === СЛАЙДЕРЫ === */
+        .stSlider > div > div > div > div {{
+            background: {OUTLINE};
+        }}
+        
+        .stSlider > div > div > div > div > div {{
+            background: {PRIMARY};
+        }}
+        
+        .stSlider > div > div > div > div > div > div {{
+            background: white;
+            border: 3px solid {PRIMARY};
+            box-shadow: {SHADOW_1};
+        }}
+        
+        /* === CHECKBOX === */
+        .stCheckbox {{
+            color: {TEXT_PRIMARY};
+        }}
+        
+        .stCheckbox > label > div {{
+            background: {SURFACE_BG};
+            border: 2px solid {OUTLINE};
+            border-radius: 4px;
+        }}
+        
+        .stCheckbox > label > div[data-checked="true"] {{
+            background: {PRIMARY};
+            border-color: {PRIMARY};
+        }}
+        
+        /* === ПРОГРЕСС БАР === */
+        .stProgress > div > div > div > div {{
+            background: {PRIMARY};
+            border-radius: {RADIUS_PILL};
+        }}
+        
+        /* === АЛЕРТЫ === */
+        .stAlert {{
+            border-radius: {RADIUS_MEDIUM};
+            border-left: 4px solid;
+            padding: 1rem;
+        }}
+        
+        [data-baseweb="notification"][kind="info"] {{
+            background: rgba(0, 97, 164, 0.08);
+            border-left-color: {PRIMARY};
+        }}
+        
+        [data-baseweb="notification"][kind="success"] {{
+            background: rgba(46, 125, 50, 0.08);
+            border-left-color: {SUCCESS};
+        }}
+        
+        [data-baseweb="notification"][kind="warning"] {{
+            background: rgba(245, 124, 0, 0.08);
+            border-left-color: {WARNING};
+        }}
+        
+        [data-baseweb="notification"][kind="error"] {{
+            background: rgba(186, 26, 26, 0.08);
+            border-left-color: {ERROR};
+        }}
+        
+        /* === КОНТЕЙНЕРЫ С РАМКОЙ === */
+        [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {{
+            background: {SURFACE_VARIANT};
+            border: 1px solid {OUTLINE};
+            border-radius: {RADIUS_MEDIUM};
+            padding: 1.5rem;
+        }}
+        
+        /* === LIVE PREVIEW (САЙДБАР) === */
+        .sidebar-preview {{
+            background: linear-gradient(135deg, {PRIMARY} 0%, {PRIMARY_DARK} 100%);
+            border-radius: {RADIUS_LARGE};
+            padding: 1.25rem;
+            margin: 1rem 0;
+            box-shadow: {SHADOW_2};
+        }}
+        
+        .preview-label {{
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }}
+        
+        .preview-value {{
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            line-height: 1.2;
+        }}
+        
+        /* === СПИННЕР === */
+        .stSpinner > div {{
+            border-top-color: {PRIMARY};
+        }}
+        
+        /* === РАЗДЕЛИТЕЛИ === */
+        hr {{
+            border: none;
+            border-top: 1px solid {OUTLINE};
+            margin: 2rem 0;
+        }}
+        
+        /* === EXPANDER === */
+        .streamlit-expanderHeader {{
+            background: {SURFACE_VARIANT};
+            border: 1px solid {OUTLINE};
+            border-radius: {RADIUS_SMALL};
+            color: {TEXT_PRIMARY};
+            font-weight: 500;
+        }}
+        
+        .streamlit-expanderHeader:hover {{
+            background: rgba(0, 97, 164, 0.04);
+        }}
+        
+        /* === DATAFRAME === */
+        .dataframe {{
+            border: 1px solid {OUTLINE};
+            border-radius: {RADIUS_SMALL};
+        }}
+        
+        .dataframe thead th {{
+            background: {SURFACE_VARIANT};
+            color: {TEXT_PRIMARY};
+            font-weight: 600;
+            border-bottom: 2px solid {OUTLINE};
+        }}
+        
+        .dataframe tbody tr:hover {{
+            background: rgba(0, 97, 164, 0.04);
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -357,30 +345,30 @@ def inject_global_css():
 
 
 def render_sidebar_preview(static_res: Dict, sim_stats: Dict):
-    """Мини-превью результатов в сайдбаре (Live Preview)."""
+    """Мини-превью результатов в сайдбаре (Material Design)."""
     st.sidebar.markdown("---")
-    st.sidebar.markdown("#### ⚡ Телеметрия")
+    st.sidebar.markdown("### ⚡ Быстрый просмотр")
     
     preview_html = f"""
     <div class="sidebar-preview">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 14px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div>
                 <div class="preview-label">Скорость</div>
-                <div class="preview-value">{static_res['speed_kmh']:.1f} <span style="font-size:0.75rem; opacity:0.7;">км/ч</span></div>
+                <div class="preview-value">{static_res['speed_kmh']:.1f} км/ч</div>
             </div>
-            <div style="text-align: right;">
+            <div>
                 <div class="preview-label">Масса</div>
-                <div class="preview-value" style="color: #d50085; text-shadow: 0 0 12px rgba(213,0,133,0.5);">{static_res['total_mass']:.1f} <span style="font-size:0.75rem; opacity:0.7;">кг</span></div>
+                <div class="preview-value">{static_res['total_mass']:.1f} кг</div>
             </div>
         </div>
-        <div style="display: flex; justify-content: space-between;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div>
                 <div class="preview-label">Энергия</div>
-                <div class="preview-value" style="color: #ffffff; text-shadow: 0 0 12px rgba(255,255,255,0.3);">{static_res['weapon_energy']/1000:.1f} <span style="font-size:0.75rem; opacity:0.7;">кДж</span></div>
+                <div class="preview-value">{static_res['weapon_energy']/1000:.1f} кДж</div>
             </div>
-            <div style="text-align: right;">
-                <div class="preview-label">Пик тока</div>
-                <div class="preview-value" style="color: #ff9900; text-shadow: 0 0 12px rgba(255,153,0,0.5);">{sim_stats.get('peak_current', 0):.0f} <span style="font-size:0.75rem; opacity:0.7;">А</span></div>
+            <div>
+                <div class="preview-label">Ток</div>
+                <div class="preview-value">{sim_stats.get('peak_current', 0):.0f} А</div>
             </div>
         </div>
     </div>
@@ -389,75 +377,39 @@ def render_sidebar_preview(static_res: Dict, sim_stats: Dict):
     
     # Прогресс-бар массы
     mass_percent = (static_res['total_mass'] / 110.0) * 100
+    st.sidebar.markdown(f"**Использование массы:** {mass_percent:.1f}%")
     if mass_percent > 100:
         st.sidebar.error(f"⚠️ Перевес: {static_res['total_mass'] - 110:.1f} кг")
     else:
-        st.sidebar.progress(mass_percent / 100, text=f"Лимит массы: {mass_percent:.1f}%")
+        st.sidebar.progress(min(mass_percent / 100, 1.0))
 
 
 def render_kpi_row(static_res: Dict, sim_stats: Dict, total_mass_limit: float):
+    """Строка ключевых метрик."""
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Скорость", f"{static_res['speed_kmh']:.1f} км/ч")
-    col2.metric("Энергия удара", f"{static_res['weapon_energy']/1000:.1f} кДж")
-    delta_mass = total_mass_limit - static_res["total_mass"]
-    col3.metric(
-        "Масса",
-        f"{static_res['total_mass']:.1f} кг",
-        f"{delta_mass:+.1f} кг",
-        delta_color="normal" if delta_mass >= 0 else "inverse",
-    )
-    col4.metric("Пиковый ток", f"{sim_stats['peak_current']:.0f} А", sim_stats["wire_awg"])
-
-
-def _apply_dark_theme(fig, title_text: str):
-    """Единая функция для применения темной темы ко всем графикам."""
-    fig.update_layout(
-        title=dict(
-            text=title_text,
-            font=dict(family="Unbounded", size=18, color="#ffffff"),
-            x=0.05
-        ),
-        paper_bgcolor='rgba(0,0,0,0)',           # Прозрачный внешний фон
-        plot_bgcolor='rgba(10, 5, 20, 0.35)',    # Полупрозрачный темный фон графика
-        font=dict(family="Raleway", color="#c0bdd0", size=12),
-        xaxis=dict(
-            showgrid=True,
-            gridcolor='rgba(255,255,255,0.04)',
-            gridwidth=1,
-            zerolinecolor='rgba(255,255,255,0.1)',
-            color='#c0bdd0'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='rgba(255,255,255,0.04)',
-            gridwidth=1,
-            zerolinecolor='rgba(255,255,255,0.1)',
-            color='#c0bdd0'
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            bgcolor='rgba(0,0,0,0.3)',
-            bordercolor='rgba(255,255,255,0.1)',
-            borderwidth=1,
-            font=dict(color="#ffffff")
-        ),
-        hovermode="x unified",
-        margin=dict(l=60, r=40, t=80, b=60),
-        hoverlabel=dict(
-            bgcolor="rgba(10, 5, 20, 0.9)",
-            font_size=13,
-            font_family="Raleway"
+    
+    with col1:
+        st.metric("Скорость (теор.)", f"{static_res['speed_kmh']:.1f} км/ч")
+    
+    with col2:
+        st.metric("Энергия удара", f"{static_res['weapon_energy']/1000:.1f} кДж")
+    
+    with col3:
+        delta_mass = total_mass_limit - static_res["total_mass"]
+        st.metric(
+            "Масса",
+            f"{static_res['total_mass']:.1f} кг",
+            f"{delta_mass:+.1f} кг",
+            delta_color="normal" if delta_mass >= 0 else "inverse",
         )
-    )
-    return fig
+    
+    with col4:
+        st.metric("Пиковый ток", f"{sim_stats['peak_current']:.0f} А", sim_stats["wire_awg"])
 
 
 def render_weight_pie(static_res: Dict, base_drive: float,
                       base_elec: float, base_frame: float):
+    """Круговая диаграмма распределения массы."""
     mass_dict = {
         "Броня": static_res["armor_mass"],
         "Оружие": static_res["weapon_inertia"] * 10,
@@ -469,83 +421,108 @@ def render_weight_pie(static_res: Dict, base_drive: float,
         {"Компонент": mass_dict.keys(), "Масса": mass_dict.values()}
     )
     
-    # Киберпанк-палитра
-    colors = ['#5200cc', '#d50085', '#0099ff', '#00d4ff', '#8a00d4']
-    
     fig = px.pie(
         df,
         values="Масса",
         names="Компонент",
-        hole=0.55,
-        color_discrete_sequence=colors
+        title="Весовой бюджет",
+        hole=0.45,
+        color_discrete_sequence=[PRIMARY, SECONDARY, PRIMARY_LIGHT, SECONDARY_LIGHT, "#B0BEC5"]
     )
     
     fig.update_traces(
-        textposition='outside',
-        textinfo='label+percent',
-        marker=dict(line=dict(color='rgba(0,0,0,0.5)', width=2))
+        textposition='inside',
+        textinfo='percent+label',
+        textfont_size=13,
+        marker=dict(line=dict(color=SURFACE_BG, width=2))
     )
     
     fig.update_layout(
-        title=dict(text="Весовой бюджет", font=dict(family="Unbounded", size=18, color="#ffffff")),
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Raleway", color="#c0bdd0", size=12),
+        paper_bgcolor=SURFACE_BG,
+        plot_bgcolor=SURFACE_BG,
+        font=dict(family=FONT_FAMILY, color=TEXT_PRIMARY),
+        title_font_size=16,
         showlegend=True,
-        margin=dict(l=20, r=20, t=60, b=20)
-    )
-    
-    # Центральная цифра
-    fig.add_annotation(
-        text=f"{static_res['total_mass']:.1f}<br><span style='font-size:14px'>кг</span>",
-        x=0.5, y=0.5,
-        font=dict(size=24, color="white", family="Unbounded"),
-        showarrow=False
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5
+        )
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 
+def get_plotly_theme():
+    """Общая тема для всех графиков Plotly."""
+    return dict(
+        paper_bgcolor=SURFACE_BG,
+        plot_bgcolor=SURFACE_BG,
+        font=dict(family=FONT_FAMILY, color=TEXT_PRIMARY, size=13),
+        xaxis=dict(
+            gridcolor=OUTLINE,
+            zerolinecolor=OUTLINE_VARIANT,
+            linecolor=OUTLINE_VARIANT
+        ),
+        yaxis=dict(
+            gridcolor=OUTLINE,
+            zerolinecolor=OUTLINE_VARIANT,
+            linecolor=OUTLINE_VARIANT
+        ),
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor=SURFACE_VARIANT,
+            font_size=13,
+            font_family=FONT_FAMILY
+        )
+    )
+
+
 def render_drive_plot(df_sim: pd.DataFrame):
+    """График разгона и нагрузки."""
     fig = go.Figure()
     
-    # Скорость (циан, толстая линия)
     fig.add_trace(
         go.Scatter(
             x=df_sim["t"],
             y=df_sim["v_kmh"],
-            name="Скорость",
-            line=dict(color="#00d4ff", width=3.5),
+            name="Скорость (км/ч)",
+            line=dict(color=PRIMARY, width=3),
             yaxis="y1",
         )
     )
     
-    # Ток (маджента, пунктир)
     fig.add_trace(
         go.Scatter(
             x=df_sim["t"],
             y=df_sim["I_bat"],
-            name="Ток АКБ",
-            line=dict(color="#d50085", width=2.5, dash="dot"),
+            name="Ток АКБ (А)",
+            line=dict(color=WARNING, width=2, dash="dot"),
             yaxis="y2",
         )
     )
     
-    fig = _apply_dark_theme(fig, "Разгон и нагрузка на батарею")
-    
     fig.update_layout(
-        yaxis=dict(title="Скорость (км/ч)", title_font=dict(color="#00d4ff")),
+        **get_plotly_theme(),
+        title="Разгон и нагрузка на батарею",
+        xaxis_title="Время (с)",
+        yaxis=dict(title="Скорость (км/ч)", titlefont=dict(color=PRIMARY)),
         yaxis2=dict(
             title="Ток (А)",
+            titlefont=dict(color=WARNING),
             overlaying="y",
-            side="right",
-            title_font=dict(color="#d50085")
-        )
+            side="right"
+        ),
+        legend=dict(x=0.02, y=0.98, bgcolor="rgba(255,255,255,0.8)")
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_thermal_plot(df_sim: pd.DataFrame):
+    """График тепловых режимов."""
     fig = go.Figure()
     
     fig.add_trace(
@@ -553,7 +530,7 @@ def render_thermal_plot(df_sim: pd.DataFrame):
             x=df_sim["t"],
             y=df_sim["T_drive"],
             name="Двигатели хода",
-            line=dict(color="#ff9900", width=3),
+            line=dict(color=WARNING, width=3),
         )
     )
     
@@ -562,87 +539,82 @@ def render_thermal_plot(df_sim: pd.DataFrame):
             x=df_sim["t"],
             y=df_sim["T_weapon"],
             name="Двигатели оружия",
-            line=dict(color="#ff3333", width=3),
+            line=dict(color=ERROR, width=3),
         )
     )
     
-    # Критическая зона
     fig.add_hline(
         y=100,
         line_dash="dash",
-        line_color="rgba(255, 51, 51, 0.6)",
-        line_width=2,
+        line_color=ERROR,
         annotation_text="Критическая зона",
-        annotation_position="right",
-        annotation_font=dict(color="#ff3333", size=11)
+        annotation_position="right"
     )
     
-    fig = _apply_dark_theme(fig, "Тепловой режим моторов")
-    fig.update_layout(yaxis_title="Температура (°C)")
+    fig.update_layout(
+        **get_plotly_theme(),
+        title="Тепловой режим моторов",
+        xaxis_title="Время (с)",
+        yaxis_title="Температура (°C)",
+        legend=dict(x=0.02, y=0.98, bgcolor="rgba(255,255,255,0.8)")
+    )
     
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_parameter_scan_plots(df_scan: pd.DataFrame, param_name: str, param_unit: str):
-    """Визуализация результатов параметрического сканирования."""
+    """Графики параметрического сканирования."""
     
     # Главный график
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df_scan["param_value"],
         y=df_scan["speed_kmh"],
-        name="Скорость",
-        line=dict(color="#00d4ff", width=3.5),
         mode="lines+markers",
-        marker=dict(
-            size=9,
-            color="#05020a",
-            line=dict(width=2, color="#00d4ff")
-        )
+        line=dict(color=PRIMARY, width=3),
+        marker=dict(size=8, color=PRIMARY_LIGHT, line=dict(color=PRIMARY, width=2))
     ))
     
-    fig = _apply_dark_theme(fig, f"Зависимость скорости от {param_name}")
     fig.update_layout(
+        **get_plotly_theme(),
+        title=f"Зависимость скорости от {param_name.lower()}",
         xaxis_title=f"{param_name} ({param_unit})",
         yaxis_title="Скорость (км/ч)"
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    # Мини-графики
+    # Три дополнительных графика
     col1, col2, col3 = st.columns(3)
     
-    def _create_mini_plot(x, y, title, color):
-        f = go.Figure()
-        f.add_trace(go.Scatter(
-            x=x, y=y,
-            line=dict(color=color, width=2.5),
-            mode="lines",
-            fill='tozeroy',
-            fillcolor=f'rgba{tuple(list(int(color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4)) + [0.1])}'
-        ))
-        f.update_layout(
-            title=dict(text=title, font=dict(size=13, color="white", family="Unbounded")),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(10,5,20,0.3)',
-            font=dict(family="Raleway", color="#999", size=10),
-            margin=dict(l=40, r=10, t=50, b=30),
-            height=220,
-            xaxis=dict(showgrid=False, color="#777"),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.03)', color="#777")
-        )
-        return f
-
-    with col1:
-        st.plotly_chart(_create_mini_plot(df_scan["param_value"], df_scan["total_mass"], "Масса (кг)", "#ff9900"), use_container_width=True)
-    with col2:
-        st.plotly_chart(_create_mini_plot(df_scan["param_value"], df_scan["peak_current"], "Пиковый ток (А)", "#ff3333"), use_container_width=True)
-    with col3:
-        st.plotly_chart(_create_mini_plot(df_scan["param_value"], df_scan["time_to_20"], "Разгон 0-20 км/ч (с)", "#00ff99"), use_container_width=True)
+    metrics = [
+        ("total_mass", "Масса", "кг", SECONDARY, col1),
+        ("peak_current", "Пиковый ток", "А", WARNING, col2),
+        ("time_to_20", "Время 0-20 км/ч", "сек", SUCCESS, col3)
+    ]
+    
+    for metric_key, title, unit, color, column in metrics:
+        with column:
+            fig_small = go.Figure()
+            fig_small.add_trace(go.Scatter(
+                x=df_scan["param_value"],
+                y=df_scan[metric_key],
+                mode="lines+markers",
+                line=dict(color=color, width=2),
+                marker=dict(size=6)
+            ))
+            fig_small.update_layout(
+                **get_plotly_theme(),
+                title=title,
+                xaxis_title="",
+                yaxis_title=unit,
+                height=300,
+                margin=dict(l=40, r=20, t=40, b=40)
+            )
+            st.plotly_chart(fig_small, use_container_width=True)
 
 
 def render_comparison_view(config_a: Dict, config_b: Dict, comparison: Dict):
-    """Side-by-side сравнение двух конфигураций."""
-    
+    """Side-by-side сравнение конфигураций."""
     col_a, col_b = st.columns(2)
     
     with col_a:
@@ -658,32 +630,32 @@ def render_comparison_view(config_a: Dict, config_b: Dict, comparison: Dict):
         st.metric(
             "Скорость",
             f"{config_b['speed_kmh']:.1f} км/ч",
-            f"{comparison['speed_kmh']['delta']:+.1f}"
+            f"{comparison['speed_kmh']['delta']:+.1f} ({comparison['speed_kmh']['delta_pct']:+.1f}%)"
         )
         st.metric(
             "Масса",
             f"{config_b['total_mass']:.1f} кг",
-            f"{comparison['total_mass']['delta']:+.1f}"
+            f"{comparison['total_mass']['delta']:+.1f} ({comparison['total_mass']['delta_pct']:+.1f}%)"
         )
         st.metric(
             "Энергия удара",
             f"{config_b['weapon_energy_kj']:.1f} кДж",
-            f"{comparison['weapon_energy_kj']['delta']:+.1f}"
+            f"{comparison['weapon_energy_kj']['delta']:+.1f} ({comparison['weapon_energy_kj']['delta_pct']:+.1f}%)"
         )
         st.metric(
             "Пиковый ток",
             f"{config_b['peak_current']:.0f} А",
-            f"{comparison['peak_current']['delta']:+.0f}"
+            f"{comparison['peak_current']['delta']:+.0f} ({comparison['peak_current']['delta_pct']:+.1f}%)"
         )
         st.metric(
             "Перегрузка",
             f"{config_b['g_force_self']:.1f} G",
-            f"{comparison['g_force_self']['delta']:+.1f}"
+            f"{comparison['g_force_self']['delta']:+.1f} ({comparison['g_force_self']['delta_pct']:+.1f}%)"
         )
 
 
 def render_optimization_progress(history: list):
-    """Визуализация прогресса оптимизации."""
+    """График прогресса оптимизации."""
     if not history:
         return
     
@@ -693,18 +665,15 @@ def render_optimization_progress(history: list):
     fig.add_trace(go.Scatter(
         y=df_hist["score"],
         mode="lines+markers",
-        name="Целевая функция",
-        line=dict(color="#00ff99", width=3),
-        marker=dict(
-            size=7,
-            color="#05020a",
-            line=dict(width=2, color="#00ff99")
-        )
+        line=dict(color=PRIMARY, width=2),
+        marker=dict(size=6, color=PRIMARY_LIGHT, line=dict(color=PRIMARY, width=1))
     ))
     
-    fig = _apply_dark_theme(fig, "Сходимость оптимизации")
     fig.update_layout(
+        **get_plotly_theme(),
+        title="Сходимость оптимизации",
         xaxis_title="Итерация",
         yaxis_title="Целевая функция (меньше = лучше)"
     )
+    
     st.plotly_chart(fig, use_container_width=True)
