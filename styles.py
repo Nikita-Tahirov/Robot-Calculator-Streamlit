@@ -17,14 +17,13 @@ def setup_page():
 
 
 def inject_global_css():
-    """Глобальные стили с форсированием светлой темы (перекрывает системную темную тему)."""
+    """Глобальные стили с форсированием светлой темы."""
     st.markdown(
         f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
         /* === ФОРСИРУЕМ СВЕТЛУЮ ТЕМУ === */
-        /* Перекрываем системные настройки браузера */
         :root {{
             color-scheme: light !important;
         }}
@@ -111,9 +110,22 @@ def inject_global_css():
             box-shadow: {SHADOW_1};
         }}
         
+        /* Текст внутри кнопок принудительно белый */
+        .stButton > button * {{
+            color: white !important;
+        }}
+        
+        .stButton > button p {{
+            color: white !important;
+        }}
+        
         .stButton > button:hover {{
             background: {PRIMARY_DARK} !important;
             transform: translateY(-1px);
+        }}
+        
+        .stButton > button:active {{
+            transform: translateY(0);
         }}
         
         /* === ТАБЫ === */
@@ -128,10 +140,18 @@ def inject_global_css():
             font-weight: 500;
         }}
         
+        .stTabs [data-baseweb="tab"] * {{
+            color: {TEXT_SECONDARY} !important;
+        }}
+        
         .stTabs [aria-selected="true"] {{
             color: {PRIMARY} !important;
             border-bottom: 3px solid {PRIMARY} !important;
             font-weight: 600;
+        }}
+        
+        .stTabs [aria-selected="true"] * {{
+            color: {PRIMARY} !important;
         }}
         
         /* === ИНПУТЫ === */
