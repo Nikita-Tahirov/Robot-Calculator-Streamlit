@@ -1,5 +1,4 @@
 import datetime
-
 import streamlit as st
 
 from physics import (
@@ -16,6 +15,20 @@ from styles import (
     render_weight_pie,
     render_drive_plot,
     render_thermal_plot,
+    render_parameter_scan_plots,
+    render_comparison_view,
+)
+from analysis import (
+    SCANNABLE_PARAMS,
+    run_parameter_scan,
+    get_optimal_range,
+)
+from comparison import (
+    init_comparison_state,
+    save_configuration,
+    get_saved_configs,
+    clear_saved_configs,
+    get_comparison_data,
 )
 
 ROBOT_LIMIT_KG = 110.0
@@ -60,12 +73,12 @@ def build_sidebar():
     armor_thickness = st.sidebar.slider("Толщина брони (мм)", 2, 10, 5)
     armor_coverage = st.sidebar.slider("Покрытие броней (%)", 10, 100, 35)
 
-    # Базовые массы (можно вынести в отдельные настройки)
+    # Базовые массы
     base_drive_mass = 18.0
     base_elec_mass = 12.0
     base_frame_mass = 25.0
-    armor_density_kg_m3 = 2700.0  # алюминий
-    armor_area_total = 3.0        # м²
+    armor_density_kg_m3 = 2700.0
+    armor_area_total = 3.0
 
     inputs = {
         "name": name,
@@ -99,6 +112,7 @@ def build_sidebar():
 def main():
     setup_page()
     inject_global_css()
+    init_comparison_state()
 
     inputs, base_drive_mass, base_elec_mass, base_frame_mass = build_sidebar()
 
@@ -143,24 +157,42 @@ def main():
     # --------- UI ---------
     st.title(f"Digital Twin: {inputs['name']}")
 
-    tab_summary, tab_dynamics, tab_thermal, tab_collision, tab_passport = st.tabs(
-        ["📊 Сводка", "⏱ Динамика", "🔥 Тепло", "💥 Столкновение", "📑 Паспорт"]
-    )
+    # Кнопка сохранения конфигурации (перед табами)
+    col_save, col_clear = st.columns([3, 1])
+    with col_save:
+        if st.button("💾 Сохранить текущую конфигурацию"):
+            save_configuration(inputs["name"], inputs, static_res, sim_stats, collision)
+            st.success(f"✅ Конфигурация '{inputs['name']}' сохранена!")
+    with col_clear:
+        if st.button("🗑️ Очистить все"):
+            clear_saved_configs()
+            st.rerun()
 
-    with tab_summary:
+    # Табы
+    tabs = st.tabs([
+        "📊 Сводка",
+        "⏱ Динамика",
+        "🔥 Тепло",
+        "💥 Столкновение",
+        "🔬 Анализ параметров",
+        "⚖️ Сравнение",
+        "📑 Паспорт"
+    ])
+
+    with tabs[0]:  # Сводка
         render_kpi_row(static_res, sim_stats, ROBOT_LIMIT_KG)
         st.markdown("---")
         render_weight_pie(static_res, base_drive_mass, base_elec_mass, base_frame_mass)
 
-    with tab_dynamics:
+    with tabs[1]:  # Динамика
         st.subheader("Разгон и нагрузка на батарею")
         render_drive_plot(df_sim)
 
-    with tab_thermal:
+    with tabs[2]:  # Тепло
         st.subheader("Тепловой режим моторов")
         render_thermal_plot(df_sim)
 
-    with tab_collision:
+    with tabs[3]:  # Столкновение
         st.subheader("Модель столкновения спиннера с целью 110 кг")
         col1, col2 = st.columns(2)
         with col1:
@@ -172,7 +204,100 @@ def main():
             st.metric("Перегрузка цели", f"{collision['g_force_target']:.1f} G")
             st.metric("Скорость отдачи", f"{collision['recoil_speed_kmh']:.1f} км/ч")
 
-    with tab_passport:
+    with tabs[4]:  # Анализ параметров (новое!)
+        st.header("🔬 Параметрическое сканирование")
+        st.markdown("Анализ влияния одного параметра на все характеристики робота.")
+        
+        col_param, col_range = st.columns([2, 2])
+        
+        with col_param:
+            selected_param = st.selectbox(
+                "Выберите параметр для анализа",
+                options=list(SCANNABLE_PARAMS.keys()),
+                format_func=lambda x: SCANNABLE_PARAMS[x]["name"]
+            )
+        
+        param_info = SCANNABLE_PARAMS[selected_param]
+        
+        with col_range:
+            st.write(f"**Диапазон:** {param_info['range'][0]} – {param_info['range'][1]} {param_info['unit']}")
+            num_points = st.slider("Количество точек", 10, 30, 15)
+        
+        if st.button("▶️ Запустить сканирование"):
+            with st.spinner("Симуляция в процессе..."):
+                df_scan = run_parameter_scan(
+                    inputs,
+                    selected_param,
+                    param_info["range"],
+                    num_points
+                )
+                
+                st.session_state["scan_result"] = df_scan
+                st.session_state["scan_param"] = selected_param
+        
+        if "scan_result" in st.session_state:
+            df_scan = st.session_state["scan_result"]
+            scan_param = st.session_state["scan_param"]
+            param_info = SCANNABLE_PARAMS[scan_param]
+            
+            render_parameter_scan_plots(df_scan, param_info["name"], param_info["unit"])
+            
+            # Оптимальное значение
+            optimal = get_optimal_range(df_scan, scan_param)
+            st.success(f"🎯 Рекомендуемое значение: **{optimal['optimal_value']:.2f} {param_info['unit']}**")
+            
+            with st.expander("📊 Таблица результатов"):
+                st.dataframe(df_scan.style.highlight_max(axis=0, subset=["speed_kmh", "weapon_energy_kj"])
+                                         .highlight_min(axis=0, subset=["total_mass", "peak_current", "time_to_20"]))
+
+    with tabs[5]:  # Сравнение (новое!)
+        st.header("⚖️ Side-by-Side сравнение")
+        
+        saved_configs = get_saved_configs()
+        
+        if len(saved_configs) < 1:
+            st.info("ℹ️ Нет сохраненных конфигураций. Сохраните хотя бы одну для сравнения.")
+        else:
+            st.markdown(f"**Сохранено конфигураций:** {len(saved_configs)}")
+            
+            col_sel_a, col_sel_b = st.columns(2)
+            
+            with col_sel_a:
+                config_a_name = st.selectbox(
+                    "Конфигурация A",
+                    options=[c["name"] for c in saved_configs],
+                    key="config_a"
+                )
+            
+            with col_sel_b:
+                # Вторая конфигурация — текущая live
+                use_live = st.checkbox("Использовать текущую (LIVE)", value=True)
+            
+            config_a = next((c for c in saved_configs if c["name"] == config_a_name), None)
+            
+            if use_live:
+                # Создаем псевдо-конфиг из текущих данных
+                config_b = {
+                    "name": "⚡ CURRENT (LIVE)",
+                    "speed_kmh": static_res["speed_kmh"],
+                    "total_mass": static_res["total_mass"],
+                    "weapon_energy_kj": static_res["weapon_energy"] / 1000,
+                    "peak_current": sim_stats["peak_current"],
+                    "g_force_self": collision["g_force_self"],
+                }
+            else:
+                config_b_name = st.selectbox(
+                    "Конфигурация B",
+                    options=[c["name"] for c in saved_configs if c["name"] != config_a_name],
+                    key="config_b"
+                )
+                config_b = next((c for c in saved_configs if c["name"] == config_b_name), None)
+            
+            if config_a and config_b:
+                comparison = get_comparison_data(config_a, config_b)
+                render_comparison_view(config_a, config_b, comparison)
+
+    with tabs[6]:  # Паспорт
         st.subheader("Паспорт робота (Markdown)")
         with st.container(border=True):
             st.markdown(report_md)
