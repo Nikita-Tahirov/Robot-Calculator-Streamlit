@@ -1,489 +1,231 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import pandas as pd
+import plotly.express as px
 from datetime import datetime
 
-# Конфигурация страницы
+# --- КОНФИГУРАЦИЯ СТРАНИЦЫ ---
 st.set_page_config(
-    page_title="Калькулятор Боевого Робота",
-    page_icon="🤖",
+    page_title="Конфигуратор платформы 1T Rex",
+    page_icon="🦖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Стили и CSS
-st.markdown("""
-<style>
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        margin: 10px 0;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .metric-value {
-        font-size: 32px;
-        font-weight: bold;
-        margin: 10px 0;
-    }
-    .metric-unit {
-        font-size: 14px;
-        opacity: 0.9;
-    }
-    .section-header {
-        font-size: 20px;
-        font-weight: bold;
-        color: #667eea;
-        margin-top: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #667eea;
-    }
-    .warning-box {
-        background-color: #fff3cd;
-        border: 1px solid #ffc107;
-        color: #856404;
-        padding: 12px;
-        border-radius: 4px;
-        margin: 10px 0;
-    }
-    .info-box {
-        background-color: #e7f3ff;
-        border: 1px solid #b3d9ff;
-        color: #004085;
-        padding: 12px;
-        border-radius: 4px;
-        margin: 10px 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+# --- КОНСТАНТЫ И СПРАВОЧНИКИ ---
+MATERIALS = {
+    "Алюминиевый сплав (АМг6/Д16Т)": 2.70,
+    "Титан (VT6)": 4.43,
+    "Сталь (Ст3/Hardox)": 7.85,
+    "Полиуретан (Колеса)": 1.20
+}
 
-# Заголовок приложения
-st.markdown("# 🤖 Калькулятор Параметров Боевого Робота")
-st.markdown("Расчет основных характеристик боевого робота на основе параметров мотора и конструкции")
+ROBOT_LIMIT_KG = 110.0
 
-# ========== БОКОВАЯ ПАНЕЛЬ ==========
-st.sidebar.markdown("## ⚙️ Параметры Конфигурации")
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+def calculate_plate_weight(material_name, area_m2, thickness_mm):
+    """Расчет массы пластины/брони"""
+    density_g_cm3 = MATERIALS[material_name]
+    density_kg_m3 = density_g_cm3 * 1000
+    volume_m3 = area_m2 * (thickness_mm / 1000)
+    return volume_m3 * density_kg_m3
 
-# Стандартные значения (110 кг, 12S, 25 км/ч)
-default_voltage = 44.4  # 12S LiPo = 12 × 3.7V = 44.4V
-default_speed = 25  # км/ч
-default_mass_total = 110  # кг
+def generate_report(params, results):
+    """Генерация Markdown отчета для ВКР"""
+    date_str = datetime.now().strftime("%d.%m.%Y")
+    report = f"""
+# ТЕХНИЧЕСКИЙ ПАСПОРТ РОБОТИЗИРОВАННОЙ ПЛАТФОРМЫ
+**Проект:** {params['name']}
+**Направление:** 15.04.06 Мехатроника и робототехника
+**Дата расчета:** {date_str}
 
-# Входные параметры
-st.sidebar.markdown("### Электропитание")
-voltage_s = st.sidebar.number_input(
-    "Напряжение (S)",
-    min_value=1,
-    max_value=30,
-    value=12,
-    help="Количество ячеек LiPo (каждая ячейка 3.7V)"
-)
-voltage = voltage_s * 3.7  # Преобразование S в вольты
+## 1. Общие сведения
+| Параметр | Значение |
+|----------|----------|
+| **Габариты (ДхШхВ)** | {params['dims']} мм |
+| **Расчетная масса** | {results['total_mass']:.2f} кг |
+| **Класс** | Heavyweight ({ROBOT_LIMIT_KG} кг) |
+| **Макс. скорость** | {results['speed_kmh']:.1f} км/ч |
+| **Энергосистема** | LiPo {params['voltage_s']}S ({params['voltage_v']:.1f} В) |
 
-st.sidebar.markdown("### Параметры Мотора")
-kv_motor = st.sidebar.number_input(
-    "KV мотора (RPM/V)",
-    min_value=10,
-    max_value=5000,
-    value=50,
-    help="Обороты мотора на один вольт без нагрузки"
-)
+## 2. Силовая установка и трансмиссия
+* **Привод хода:** {params['drive_count']} электродвигателя(ей) через редукторы.
+* **Привод орудия:** {params['weapon_motor_count']} электродвигателя(ей), ременная передача.
+* **Колеса:** Полиуретан, Ø{params['wheel_dia_mm']} мм (собственное изготовление).
 
-transmission_ratio = st.sidebar.number_input(
-    "Передаточное число редуктора",
-    min_value=1,
-    max_value=100,
-    value=20,
-    help="Отношение входных оборотов к выходным"
-)
+## 3. Боевая часть
+* **Тип:** {params['weapon_type']}
+* **Эффективная масса ротора:** {params['weapon_mass']} кг
+* **Кинетическая энергия:** {results['weapon_energy']:.0f} Дж ({results['weapon_energy']/1000:.1f} кДж)
+* **Скорость вращения:** {results['weapon_rpm']:.0f} об/мин
 
-st.sidebar.markdown("### Конструкция")
-wheel_diameter = st.sidebar.slider(
-    "Диаметр колеса (см)",
-    min_value=5,
-    max_value=50,
-    value=20,
-    help="Диаметр колеса в сантиметрах"
-)
+## 4. Конструкция и материалы
+* **Бронирование:** {params['armor_material']}, толщина {params['armor_thickness']} мм.
+* **Рама:** Сборная (болтовые соединения + сварка).
+* **Особенности:** Возможность движения в перевернутом виде, раздельные контуры питания.
 
-armor_mass = st.sidebar.number_input(
-    "Масса брони (кг)",
-    min_value=0.0,
-    max_value=100.0,
-    value=50.0,
-    step=1.0
-)
+---
+*Расчет выполнен в программном модуле "Digital Twin 1T Rex"*
+"""
+    return report
 
-weapon_mass = st.sidebar.number_input(
-    "Масса оружия (кг)",
-    min_value=0.0,
-    max_value=100.0,
-    value=30.0,
-    step=1.0
-)
+# --- ИНТЕРФЕЙС: БОКОВАЯ ПАНЕЛЬ (INPUTS) ---
+st.sidebar.title("🦖 1T Rex: Config")
+st.sidebar.markdown("**Параметры цифрового двойника**")
 
-# Рассчитанная общая масса
-mass_total = armor_mass + weapon_mass
+# Секция 1: База
+st.sidebar.header("1. Энергетика и База")
+robot_name = st.sidebar.text_input("Название", value="1T Rex")
+dims_str = st.sidebar.text_input("Габариты (ДхШхВ)", value="940 x 830 x 435")
+voltage_s = st.sidebar.slider("Аккумулятор (S LiPo)", 6, 14, 12, help="Номинал 44.4В для 12S")
 
-st.sidebar.markdown(f"**Общая масса:** {mass_total:.1f} кг")
+# Секция 2: Движение (4 мотора)
+st.sidebar.header("2. Ходовая часть (4WD)")
+drive_motor_count = st.sidebar.selectbox("Кол-во моторов хода", [2, 4, 6], index=1)
+# Подбираем KV и редукцию так, чтобы при 12S выходило ~25 км/ч на 200мм колесах
+# 25 км/ч = 6.94 м/с. Колесо D=0.2м -> L=0.628м. RPM колеса = 663.
+# Мотор KV190 на 44.4В = 8436 RPM. Редукция нужна ~12.7:1
+motor_kv = st.sidebar.number_input("KV моторов хода", value=190, step=10)
+gear_ratio = st.sidebar.number_input("Редукция хода (X:1)", value=12.5, step=0.1)
+wheel_dia_mm = st.sidebar.number_input("Диаметр колеса (мм)", value=200, step=5)
+wheel_friction_coeff = 0.7 # Для полиуретана
 
-# Эффективность мотора
-motor_efficiency = st.sidebar.slider(
-    "КПД мотора (%)",
-    min_value=50,
-    max_value=95,
-    value=85,
-    help="Коэффициент полезного действия мотора"
-) / 100
+# Секция 3: Оружие (2 мотора)
+st.sidebar.header("3. Вертикальный спиннер")
+weapon_motor_count = st.sidebar.selectbox("Кол-во моторов оружия", [1, 2], index=1)
+weapon_type = "Вертикальный спиннер (Диск/Биток)"
+weapon_motor_kv = st.sidebar.number_input("KV моторов оружия", value=150, step=10) # Мощные низы
+weapon_reduction = st.sidebar.number_input("Редукция (Ремень) X:1", value=1.5, step=0.1)
+weapon_mass_kg = st.sidebar.number_input("Масса ротора (кг)", value=28.0, step=0.5)
+weapon_radius_mm = st.sidebar.number_input("Радиус удара (мм)", value=180, step=10)
 
-# Батарея
-st.sidebar.markdown("### Батарея")
-battery_capacity = st.sidebar.number_input(
-    "Емкость батареи (mAh)",
-    min_value=100,
-    max_value=100000,
-    value=10000,
-    help="Емкость аккумулятора в миллиампер-часах"
-)
+# Секция 4: Весовая сводка
+st.sidebar.header("4. Вес и Материалы")
+armor_material = st.sidebar.selectbox("Материал брони", list(MATERIALS.keys()), index=0) # Алюминий
+armor_thickness = st.sidebar.slider("Толщина внеш. панелей (мм)", 2, 12, 5)
+# Площадь обшивки. У робота 940х830 огромная площадь. Допустим, обшито 40% поверхности
+total_surface_area = 3.0 # Грубая оценка м2 полной коробки
+armor_coverage_percent = st.sidebar.slider("Процент бронирования площади (%)", 10, 100, 35)
+active_armor_area = total_surface_area * (armor_coverage_percent / 100)
 
-battery_cells = st.sidebar.number_input(
-    "Количество параллельных батарей",
-    min_value=1,
-    max_value=10,
-    value=2,
-    help="Количество параллельно соединенных батарей"
-)
+# Фиксированные веса (примерные)
+# 4 мотора (по 1.5 кг) + 2 мотора оружия (по 2 кг) + редукторы + колеса
+drive_train_mass = st.sidebar.number_input("Масса ходовой (Моторы+Колеса) кг", value=18.0) 
+electronics_mass = st.sidebar.number_input("Электроника (АКБ+ESC+Провода)", value=12.0)
+frame_internal_mass = st.sidebar.number_input("Внутр. рама и крепеж (кг)", value=25.0)
 
-# ========== РАСЧЕТЫ ==========
+# --- РАСЧЕТНАЯ МОДЕЛЬ (BACKEND) ---
 
-# Основные расчеты
-wheel_radius_m = (wheel_diameter / 100) / 2  # Радиус в метрах
-wheel_circumference = np.pi * wheel_diameter / 100  # Длина окружности в метрах
+voltage_nom = voltage_s * 3.7
 
-# Максимальная частота вращения вала мотора (в об/мин)
-max_rpm_motor = kv_motor * voltage
+# 1. Расчет скорости
+wheel_circumference_m = (wheel_dia_mm / 1000) * np.pi
+motor_rpm_loaded = (voltage_nom * motor_kv) * 0.85 # 85% эффективность под нагрузкой
+wheel_rpm = motor_rpm_loaded / gear_ratio
+speed_ms = (wheel_rpm * wheel_circumference_m) / 60
+speed_kmh = speed_ms * 3.6
 
-# Частота вращения колеса (об/мин)
-rpm_wheel = max_rpm_motor / transmission_ratio
+# 2. Расчет оружия
+# Момент инерции для диска/битка (коэфф 0.6 усредненный для сложной формы)
+inertia = 0.6 * weapon_mass_kg * ((weapon_radius_mm/1000) ** 2)
+weapon_rpm = (voltage_nom * weapon_motor_kv) / weapon_reduction
+weapon_rad_s = (weapon_rpm * 2 * np.pi) / 60
+kinetic_energy = 0.5 * inertia * (weapon_rad_s ** 2)
 
-# Линейная скорость (м/с)
-linear_speed_ms = (rpm_wheel / 60) * wheel_circumference
+# 3. Расчет массы
+calculated_armor_mass = calculate_plate_weight(armor_material, active_armor_area, armor_thickness)
+total_mass = drive_train_mass + electronics_mass + frame_internal_mass + weapon_mass_kg + calculated_armor_mass
 
-# Скорость в км/ч
-speed_kmh = linear_speed_ms * 3.6
+# Словарь для отчета
+results_dict = {
+    'total_mass': total_mass,
+    'speed_kmh': speed_kmh,
+    'weapon_energy': kinetic_energy,
+    'weapon_rpm': weapon_rpm,
+    'armor_mass': calculated_armor_mass
+}
+params_dict = {
+    'name': robot_name,
+    'dims': dims_str,
+    'voltage_s': voltage_s,
+    'voltage_v': voltage_nom,
+    'drive_count': drive_motor_count,
+    'wheel_dia_mm': wheel_dia_mm,
+    'weapon_type': weapon_type,
+    'weapon_motor_count': weapon_motor_count,
+    'weapon_mass': weapon_mass_kg,
+    'armor_material': armor_material,
+    'armor_thickness': armor_thickness
+}
 
-# Крутящий момент на валу мотора (приблизительно)
-# T = P / ω, но для начального расчета используем KV и характеристики LiPo
-estimated_torque_nm = (voltage / 1000) * 0.5  # Приблизительный момент
+# --- ВИЗУАЛИЗАЦИЯ (UI) ---
 
-# Крутящий момент на выходе редуктора
-torque_output = estimated_torque_nm * transmission_ratio * motor_efficiency
+st.title(f"🛠️ Проектирование платформы: {robot_name}")
+st.caption(f"Направление: 15.04.06 Мехатроника и робототехника | Спонсор: 1Т")
 
-# Максимальный ток (приблизительный расчет)
-# Для LiPo батареи, примерно 20C discharge rating
-c_rating = 20
-max_current = (battery_capacity / 1000) * battery_cells * (c_rating / 60)  # в амперах
-
-# Кинетическая энергия оружия (только движущаяся часть)
-# E_k = (m * v^2) / 2, где m - масса оружия, v - скорость
-kinetic_energy_weapon = (weapon_mass * (linear_speed_ms ** 2)) / 2
-
-# Общий ток при максимальной нагрузке
-# P = U * I, I = P / U
-# Мощность примерно P = voltage * max_current * efficiency
-motor_power = voltage * max_current * motor_efficiency
-total_current_operating = motor_power / voltage if voltage > 0 else 0
-
-# Время работы (часов)
-total_capacity_mah = battery_capacity * battery_cells
-time_operation_hours = total_capacity_mah / (total_current_operating * 1000) if total_current_operating > 0 else 0
-
-# ========== ОСНОВНАЯ ПЛОЩАДЬ ==========
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(f"""
-    <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="metric-unit">Скорость робота</div>
-        <div class="metric-value">{speed_kmh:.1f}</div>
-        <div class="metric-unit">км/ч</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f"""
-    <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-        <div class="metric-unit">Кинетическая энергия оружия</div>
-        <div class="metric-value">{kinetic_energy_weapon:.1f}</div>
-        <div class="metric-unit">Дж</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""
-    <div class="metric-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-        <div class="metric-unit">Общий ток</div>
-        <div class="metric-value">{total_current_operating:.1f}</div>
-        <div class="metric-unit">А</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ========== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ==========
-
-st.markdown("---")
-
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Графики", "⚙️ Расчеты", "📈 Анализ", "ℹ️ Справка"])
+# Вкладки
+tab1, tab2, tab3 = st.tabs(["📊 Сводка характеристик", "⚖️ Весовой бюджет", "📑 Паспорт ВКР"])
 
 with tab1:
-    st.markdown("### Интерактивные Графики")
-    
-    # График 1: Зависимость скорости от диаметра колеса
-    wheel_diameters = np.linspace(5, 50, 100)
-    speeds_for_diameters = []
-    
-    for wd in wheel_diameters:
-        r = (wd / 100) / 2
-        circ = np.pi * wd / 100
-        rpm_w = max_rpm_motor / transmission_ratio
-        v_ms = (rpm_w / 60) * circ
-        v_kmh = v_ms * 3.6
-        speeds_for_diameters.append(v_kmh)
-    
-    col1, col2 = st.columns(2)
-    
+    col1, col2, col3 = st.columns(3)
     with col1:
-        fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(
-            x=wheel_diameters,
-            y=speeds_for_diameters,
-            mode='lines+markers',
-            name='Скорость',
-            line=dict(color='#667eea', width=3),
-            marker=dict(size=6)
-        ))
-        fig1.add_vline(x=wheel_diameter, line_dash="dash", line_color="red", 
-                       annotation_text=f"Текущий: {wheel_diameter}см",
-                       annotation_position="top right")
-        fig1.update_layout(
-            title="Скорость робота vs Диаметр колеса",
-            xaxis_title="Диаметр колеса (см)",
-            yaxis_title="Скорость (км/ч)",
-            template="plotly_white",
-            height=400
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-    
+        st.metric("Скорость (Расчетная)", f"{speed_kmh:.1f} км/ч", f"Цель: ~25 км/ч")
+        st.caption(f"При редукции {gear_ratio}:1 и {voltage_s}S")
     with col2:
-        # График 2: Энергия оружия от скорости
-        speeds_range = np.linspace(0, speed_kmh * 1.5, 50)
-        speeds_range_ms = speeds_range / 3.6
-        energies = (weapon_mass * (speeds_range_ms ** 2)) / 2
-        
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(
-            x=speeds_range,
-            y=energies,
-            mode='lines',
-            name='Кинетическая энергия',
-            line=dict(color='#f5576c', width=3),
-            fill='tozeroy'
-        ))
-        fig2.add_vline(x=speed_kmh, line_dash="dash", line_color="red",
-                       annotation_text=f"Текущая: {speed_kmh:.1f}км/ч",
-                       annotation_position="top right")
-        fig2.update_layout(
-            title="Кинетическая энергия оружия",
-            xaxis_title="Скорость (км/ч)",
-            yaxis_title="Энергия (Дж)",
-            template="plotly_white",
-            height=400
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.metric("Кинетическая энергия", f"{kinetic_energy/1000:.1f} кДж", f"{weapon_rpm:.0f} RPM")
+        st.caption("Вертикальный спиннер")
+    with col3:
+        delta = ROBOT_LIMIT_KG - total_mass
+        st.metric("Итоговая масса", f"{total_mass:.1f} кг", f"{delta:+.1f} кг (Запас)", 
+                  delta_color="normal" if delta >= 0 else "inverse")
+    
+    st.divider()
+    
+    # Визуализация "Спидометр vs Оружие"
+    c1, c2 = st.columns(2)
+    with c1:
+        st.info(f"**Ходовая часть:** {drive_motor_count} мотора(ов) • Полиуретан Ø{wheel_dia_mm}мм")
+    with c2:
+        st.error(f"**Оружие:** {weapon_motor_count} мотора(ов) • Ротор {weapon_mass_kg}кг • Ремень")
 
 with tab2:
-    st.markdown("### Подробные Расчеты")
+    st.subheader("Распределение массы по подсистемам")
     
-    col1, col2 = st.columns(2)
+    mass_data = {
+        "Броня (Al сплав)": calculated_armor_mass,
+        "Орудие (Ротор + Привод)": weapon_mass_kg + (weapon_motor_count * 2.0), # + вес моторов оружия
+        "Ходовая (Моторы + Колеса)": drive_train_mass,
+        "Рама и Крепеж": frame_internal_mass,
+        "Электроника и АКБ": electronics_mass
+    }
     
-    with col1:
-        st.markdown("**Параметры Мотора**")
-        params_motor = {
-            "Напряжение батареи": f"{voltage:.1f} В",
-            "KV мотора": f"{kv_motor} об/мин/В",
-            "Макс. обороты вала": f"{max_rpm_motor:.0f} об/мин",
-            "Передаточное число": f"{transmission_ratio}:1",
-            "Обороты на выходе": f"{rpm_wheel:.0f} об/мин",
-            "КПД мотора": f"{motor_efficiency*100:.0f}%"
-        }
-        df_motor = pd.DataFrame(list(params_motor.items()), columns=["Параметр", "Значение"])
-        st.table(df_motor)
+    # Корректировка тотала для графика (чтобы сумма сходилась с total_mass, если мы добавили вес моторов оружия вручную выше)
+    # Для простоты в пайчарте используем чистые введенные категории
     
-    with col2:
-        st.markdown("**Параметры Передвижения**")
-        params_movement = {
-            "Диаметр колеса": f"{wheel_diameter} см",
-            "Радиус колеса": f"{wheel_radius_m*100:.1f} см",
-            "Длина окружности": f"{wheel_circumference:.3f} м",
-            "Скорость (м/с)": f"{linear_speed_ms:.2f} м/с",
-            "Скорость (км/ч)": f"{speed_kmh:.2f} км/ч",
-            "Крутящий момент": f"{torque_output:.2f} Н·м"
-        }
-        df_movement = pd.DataFrame(list(params_movement.items()), columns=["Параметр", "Значение"])
-        st.table(df_movement)
+    fig = px.pie(
+        values=list(mass_data.values()), 
+        names=list(mass_data.keys()),
+        hole=0.5,
+        color_discrete_sequence=px.colors.qualitative.Prism, # Палитра поярче
+    )
+    fig.update_layout(title_text="Структура веса (кг)", annotations=[dict(text=f'{total_mass:.0f} кг', x=0.5, y=0.5, font_size=20, showarrow=False)])
+    st.plotly_chart(fig, use_container_width=True)
     
-    col3, col4 = st.columns(2)
-    
-    with col3:
-        st.markdown("**Параметры Питания**")
-        params_power = {
-            "Емкость батареи": f"{battery_capacity} mAh",
-            "Параллельных батарей": f"{battery_cells}",
-            "Общая емкость": f"{total_capacity_mah} mAh",
-            "Max ток (20C)": f"{max_current:.1f} А",
-            "Рабочий ток": f"{total_current_operating:.2f} А",
-            "Мощность мотора": f"{motor_power:.1f} Вт"
-        }
-        df_power = pd.DataFrame(list(params_power.items()), columns=["Параметр", "Значение"])
-        st.table(df_power)
-    
-    with col4:
-        st.markdown("**Параметры Конструкции**")
-        params_construction = {
-            "Масса брони": f"{armor_mass:.1f} кг",
-            "Масса оружия": f"{weapon_mass:.1f} кг",
-            "Общая масса": f"{mass_total:.1f} кг",
-            "Кинет. энергия": f"{kinetic_energy_weapon:.2f} Дж",
-            "Время работы": f"{time_operation_hours:.2f} часов",
-            "Удельная мощность": f"{motor_power/mass_total:.2f} Вт/кг"
-        }
-        df_construction = pd.DataFrame(list(params_construction.items()), columns=["Параметр", "Значение"])
-        st.table(df_construction)
+    if total_mass > ROBOT_LIMIT_KG:
+        st.warning(f"⚠️ **Превышение лимита!** Необходимо снизить вес на {total_mass - ROBOT_LIMIT_KG:.2f} кг.")
+        st.markdown("- Попробуйте уменьшить толщину брони\n- Уменьшите % покрытия броней\n- Облегчите раму")
 
 with tab3:
-    st.markdown("### Анализ и Рекомендации")
+    st.header("Экспорт данных для ВКР")
+    st.markdown("Этот отчет можно вставить в **Приложение А** пояснительной записки.")
     
-    # Анализ производительности
-    st.markdown("#### 🎯 Анализ Производительности")
+    report_md = generate_report(params_dict, results_dict)
+    st.code(report_md, language="markdown")
     
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        efficiency_score = min(100, (speed_kmh / 30) * 100)
-        st.metric("Скорость (оценка)", f"{efficiency_score:.0f}%", 
-                 f"{speed_kmh:.1f} км/ч")
-    
-    with col2:
-        power_density = motor_power / mass_total
-        st.metric("Удельная мощность", f"{power_density:.1f} Вт/кг",
-                 f"Мощность: {motor_power:.0f}Вт")
-    
-    with col3:
-        energy_score = min(100, (kinetic_energy_weapon / 500) * 100)
-        st.metric("Энергия оружия (оценка)", f"{energy_score:.0f}%",
-                 f"{kinetic_energy_weapon:.1f} Дж")
-    
-    # Рекомендации
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if speed_kmh < 15:
-            st.markdown("""
-            <div class="warning-box">
-            <strong>⚠️ Низкая скорость</strong><br>
-            Рассмотрите увеличение KV мотора или уменьшение передаточного числа для большей скорости.
-            </div>
-            """, unsafe_allow_html=True)
-        elif speed_kmh > 40:
-            st.markdown("""
-            <div class="warning-box">
-            <strong>⚠️ Высокая скорость</strong><br>
-            Убедитесь в достаточной охлаждении мотора и прочности конструкции при высоких оборотах.
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="info-box">
-            <strong>✓ Оптимальная скорость</strong><br>
-            Скорость находится в хорошем диапазоне для боевого робота.
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        if time_operation_hours < 0.5:
-            st.markdown("""
-            <div class="warning-box">
-            <strong>⚠️ Короткое время работы</strong><br>
-            Рассмотрите увеличение емкости батареи или параллельных ячеек.
-            </div>
-            """, unsafe_allow_html=True)
-        elif time_operation_hours > 2:
-            st.markdown("""
-            <div class="info-box">
-            <strong>✓ Хорошее время работы</strong><br>
-            Батарея обеспечит достаточное время боя.
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="info-box">
-            <strong>✓ Нормальное время работы</strong><br>
-            Батарея обеспечит приемлемое время боя.
-            </div>
-            """, unsafe_allow_html=True)
-
-with tab4:
-    st.markdown("### 📖 Справка по Формулам")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **Скорость робота (v):**
-        v = (RPM × Длина_окружности_колеса) / 60
-        RPM = KV × Напряжение / Передаточное_число
-        
-        **Кинетическая энергия оружия (E_k):**
-        E_k = (m × v²) / 2
-        где m - масса оружия, v - скорость
-        
-        **Крутящий момент (τ):**
-        τ = (V / 1000) × 0.5 × Передаточное_число × КПД
-        """)
-    
-    with col2:
-        st.markdown("""
-        **Максимальный ток:**
-        I_max = (Емкость_батареи / 1000) × Батареи_параллельно × C_rating
-        C_rating - максимальный ток разряда (обычно 20-50C)
-        
-        **Время работы (t):**
-        t = Общая_емкость / Рабочий_ток (в часах)
-        
-        **Удельная мощность:**
-        P_удельная = Мощность_мотора / Общая_масса (Вт/кг)
-        """)
-    
-    st.markdown("---")
-    st.markdown("### Технические заметки")
-    st.markdown("""
-    - **KV мотора**: Количество оборотов на вольт напряжения (без нагрузки)
-    - **Передаточное число**: Отношение входящих оборотов к выходящим (редукция)
-    - **LiPo батареи**: Каждая ячейка имеет номинальное напряжение 3.7V
-    - **C-rating**: Максимальный ток разряда батареи (обычно 20-50C)
-    - **КПД**: Коэффициент полезного действия мотора (обычно 80-90%)
-    """)
-
-# ========== ПОДВАЛ ==========
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; padding: 20px; color: #666;">
-    <small>Калькулятор параметров боевого робота | v1.0</small><br>
-    <small>Все расчеты приблизительны. Для точных значений проводите экспериментальные испытания.</small>
-</div>
-""", unsafe_allow_html=True)
-
+    st.download_button(
+        label="📥 Скачать Паспорт (.md)",
+        data=report_md,
+        file_name="1T_Rex_Tech_Passport.md",
+        mime="text/markdown"
+    )
