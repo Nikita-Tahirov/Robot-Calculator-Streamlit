@@ -303,3 +303,80 @@ def generate_report(params: dict,
 ---
 *Сгенерировано модулем цифрового двойника 1T Rex.*
 """
+
+import numpy as np
+
+def run_monte_carlo_simulation(
+    base_inputs: Dict,
+    static_res: Dict,
+    variation_pct: float = 0.10,  # 10% разброс (3 сигма)
+    iterations: int = 100
+) -> pd.DataFrame:
+    """
+    Вероятностное моделирование (Monte Carlo).
+    Варьирует ключевые параметры: KV, трение, напряжение, сопротивление.
+    """
+    results = []
+    
+    # Генераторы случайных чисел (нормальное распределение)
+    # variation_pct считается как "3 сигма" (99.7% значений попадают в этот диапазон)
+    sigma_scale = variation_pct / 3.0
+    
+    rng = np.random.default_rng(42)  # Fixed seed for reproducibility
+    
+    for i in range(iterations):
+        # Варьируем параметры
+        # 1. KV моторов (производственный разброс)
+        kv_factor = rng.normal(1.0, sigma_scale)
+        sim_kv = base_inputs["motor_kv"] * kv_factor
+        
+        # 2. Трение (сильно зависит от покрытия)
+        friction_factor = rng.normal(1.0, sigma_scale * 1.5) # Трение варьируется сильнее
+        sim_friction = max(0.1, min(1.5, base_inputs["friction_coeff"] * friction_factor))
+        
+        # 3. Сопротивление батареи (температура, заряд)
+        ir_factor = rng.normal(1.0, sigma_scale)
+        sim_ir = base_inputs["battery_ir_mohm"] * ir_factor
+        
+        # Собираем параметры для симуляции
+        sim_params = {
+            "voltage_nom": static_res["voltage_nom"], # Напряжение считаем номинальным, но IR "гуляет"
+            "battery_ir_mohm": sim_ir,
+            "drive_motor_count": base_inputs["drive_motor_count"],
+            "motor_kv": sim_kv,
+            "gear_ratio": base_inputs["gear_ratio"],
+            "wheel_dia_mm": base_inputs["wheel_dia_mm"],
+            "friction_coeff": sim_friction,
+            "esc_current_limit_drive": base_inputs["esc_current_limit_drive"],
+            "simulate_weapon": False, # Для ускорения отключаем оружие в Монте-Карло
+            "weapon_motor_count": 0,
+            "weapon_motor_kv": 0,
+            "weapon_reduction": 1,
+            "weapon_inertia": 0,
+            "esc_current_limit_weapon": 0,
+        }
+        
+        # Запускаем короткую симуляцию (до 4 сек достаточно для разгона)
+        # Масса тоже может чуть "гулять", но незначительно, пренебрегаем
+        df_sim = simulate_full_system(sim_params, static_res["total_mass"], max_time=4.0)
+        
+        # Агрегируем результаты
+        peak_current = df_sim["I_bat"].max()
+        max_speed = df_sim["v_kmh"].max()
+        
+        # Время до 20 км/ч
+        try:
+            time_to_20 = df_sim[df_sim["v_kmh"] >= 20.0].iloc[0]["t"]
+        except IndexError:
+            time_to_20 = 4.0 # Не достиг
+            
+        results.append({
+            "iteration": i,
+            "kv_used": sim_kv,
+            "friction_used": sim_friction,
+            "peak_current": peak_current,
+            "max_speed": max_speed,
+            "time_to_20": time_to_20
+        })
+        
+    return pd.DataFrame(results)
