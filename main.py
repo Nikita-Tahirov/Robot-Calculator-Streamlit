@@ -1,12 +1,14 @@
 import datetime
 import streamlit as st
 
+# ... (Импорты остаются те же)
 from physics import (
     run_static_calculations,
     simulate_full_system,
     analyze_collision,
     aggregate_sim_stats,
     generate_report,
+    run_monte_carlo_simulation, # Новый импорт
 )
 from styles import (
     setup_page,
@@ -19,6 +21,7 @@ from styles import (
     render_comparison_view,
     render_sidebar_preview,
     render_optimization_progress,
+    render_monte_carlo_plot, # Новый импорт
 )
 from analysis import (
     SCANNABLE_PARAMS,
@@ -37,20 +40,18 @@ from optimizer import (
     get_default_bounds,
     parse_optimized_params,
 )
-# Импорт нового модуля руководства
 from manual import show_manual
+# Импорт базы данных компонентов
+from library_data import MOTORS_DB, BATTERIES_DB
 
 ROBOT_LIMIT_KG = 110.0
 
-
-# Кэширование для ускорения Live Preview (только статические расчеты)
 @st.cache_data(ttl=60)
 def cached_static_calc(
     voltage_s, motor_kv, gear_ratio, wheel_dia_mm,
     weapon_mass_kg, weapon_radius_mm, armor_thickness, armor_coverage,
-    _other_params_hash  # Остальные параметры в виде хэша
+    _other_params_hash
 ):
-    """Кэшированная версия статических расчетов для Live Preview."""
     inputs = st.session_state.get("full_inputs", {})
     if not inputs:
         return None
@@ -60,18 +61,56 @@ def cached_static_calc(
 def build_sidebar():
     st.sidebar.title("🦖 1T Rex – Конфигуратор")
 
-    # 1. Энергосистема
+    # 1. Энергосистема с выбором АКБ
     st.sidebar.header("1. Энергосистема")
     name = st.sidebar.text_input("Название проекта", value="1T Rex")
     voltage_s = st.sidebar.slider("Аккумулятор (S)", 6, 14, 12)
+    
+    # --- Выбор Батареи ---
+    battery_options = list(BATTERIES_DB.keys())
+    selected_battery = st.sidebar.selectbox("Тип ячеек АКБ", battery_options, index=0)
+    
+    # Логика подстановки значений АКБ
+    batt_data = BATTERIES_DB[selected_battery]
+    if selected_battery != "Custom (Своя сборка)":
+        # Примерный расчет сопротивления сборки: (IR ячейки / кол-во параллель) * кол-во послед
+        # Допустим, у нас 12S4P конфиг для хэвивейта (стандарт)
+        cells_p = 4 
+        calc_ir = (batt_data["cell_ir"] / cells_p) * voltage_s * 1.5 # 1.5 - коэф на провода/сварку
+        ir_value = float(calc_ir)
+        ir_disabled = True
+        st.sidebar.caption(f"ℹ️ {batt_data['desc']} (Расчет для 12S{cells_p}P)")
+    else:
+        ir_value = 25.0
+        ir_disabled = False
+    
     battery_ir_mohm = st.sidebar.number_input(
-        "Внутреннее сопротивление сборки (мОм)", value=25.0
+        "Внутреннее сопротивление сборки (мОм)", 
+        value=ir_value, 
+        disabled=ir_disabled
     )
 
-    # 2. Ходовая
+    # 2. Ходовая с выбором мотора
     st.sidebar.header("2. Ходовая часть")
     drive_motor_count = st.sidebar.selectbox("Кол-во моторов хода", [2, 4], index=1)
-    motor_kv = st.sidebar.number_input("KV моторов хода", value=190)
+    
+    # --- Выбор Мотора ---
+    motor_options = list(MOTORS_DB.keys())
+    selected_motor = st.sidebar.selectbox("Модель мотора", motor_options, index=0)
+    
+    motor_data = MOTORS_DB[selected_motor]
+    if selected_motor != "Custom (Свой)":
+        kv_value = int(motor_data["kv"])
+        kv_disabled = True
+        # Масса мотора тоже могла бы подставляться, но у нас в базе пока только KV для инпутов
+        # (в идеале нужно обновлять и массу компонентов, но пока ограничимся KV)
+        st.sidebar.caption(f"ℹ️ {motor_data['desc']}")
+    else:
+        kv_value = 190
+        kv_disabled = False
+        
+    motor_kv = st.sidebar.number_input("KV моторов хода", value=kv_value, disabled=kv_disabled)
+    
     gear_ratio = st.sidebar.number_input("Редукция хода", value=12.5, step=0.1)
     wheel_dia_mm = st.sidebar.number_input("Диаметр колеса (мм)", value=200, step=5)
     esc_current_limit_drive = st.sidebar.slider(
@@ -96,8 +135,13 @@ def build_sidebar():
     armor_thickness = st.sidebar.slider("Толщина брони (мм)", 2, 10, 5)
     armor_coverage = st.sidebar.slider("Покрытие броней (%)", 10, 100, 35, step=5)
 
-    # Базовые массы
-    base_drive_mass = 18.0
+    # Базовые массы (можно доработать, чтобы брались из базы моторов)
+    base_drive_mass = 18.0 
+    # Если выбран реальный мотор, можно скорректировать массу (упрощенно)
+    if selected_motor != "Custom (Свой)":
+        # 4 мотора * масса одного + колеса и редукторы
+        base_drive_mass = (drive_motor_count * motor_data["mass_kg"]) + 10.0 
+    
     base_elec_mass = 12.0
     base_frame_mass = 25.0
     armor_density_kg_m3 = 2700.0
@@ -139,15 +183,12 @@ def main():
     inject_global_css()
     init_comparison_state()
 
-    # --- ЛОГИКА РУКОВОДСТВА ПОЛЬЗОВАТЕЛЯ ---
-    # 1. Инициализация состояния
     if "first_visit" not in st.session_state:
         st.session_state.first_visit = True
 
     inputs, base_drive_mass, base_elec_mass, base_frame_mass = build_sidebar()
 
     # --------- Расчеты ---------
-    
     other_params = f"{inputs['battery_ir_mohm']}_{inputs['drive_motor_count']}"
     static_res = cached_static_calc(
         inputs["voltage_s"], inputs["motor_kv"], inputs["gear_ratio"],
@@ -159,9 +200,6 @@ def main():
     if static_res is None:
         static_res = run_static_calculations(inputs)
 
-    if "live_preview_mode" not in st.session_state:
-        st.session_state["live_preview_mode"] = True
-    
     sim_params = {
         "voltage_nom": static_res["voltage_nom"],
         "battery_ir_mohm": inputs["battery_ir_mohm"],
@@ -189,10 +227,7 @@ def main():
         target_mass=110.0,
     )
 
-    # Сайдбар: Live Preview и кнопка Руководства
     render_sidebar_preview(static_res, sim_stats)
-    
-    # Кнопка вызова руководства (вторичная кнопка)
     st.sidebar.markdown("---")
     if st.sidebar.button("📘 Руководство", type="secondary"):
         show_manual()
@@ -224,6 +259,7 @@ def main():
         "⏱ Динамика",
         "🔥 Тепло",
         "💥 Столкновение",
+        "🎲 Вероятность", # Новая вкладка
         "🔬 Анализ",
         "⚖️ Сравнение",
         "🤖 Оптимизатор",
@@ -244,44 +280,69 @@ def main():
         render_thermal_plot(df_sim)
 
     with tabs[3]:
-        st.subheader("Модель столкновения спиннера с целью 110 кг")
+        st.subheader("Столкновение")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Энергия удара", f"{collision['energy_joules']/1000:.1f} кДж")
-            st.metric("Сила удара", f"{collision['impact_force_kn']:.1f} кН")
-            st.metric("Эквивалент", collision["equivalent"])
+            st.metric("Энергия", f"{collision['energy_joules']/1000:.1f} кДж")
+            st.metric("Сила", f"{collision['impact_force_kn']:.1f} кН")
         with col2:
-            st.metric("Перегрузка для нас", f"{collision['g_force_self']:.1f} G")
-            st.metric("Перегрузка цели", f"{collision['g_force_target']:.1f} G")
-            st.metric("Скорость отдачи", f"{collision['recoil_speed_kmh']:.1f} км/ч")
+            st.metric("G-force (свой)", f"{collision['g_force_self']:.1f} G")
+            st.metric("G-force (цель)", f"{collision['g_force_target']:.1f} G")
 
+    # НОВАЯ ВКЛАДКА: Вероятность (Монте-Карло)
     with tabs[4]:
+        st.header("🎲 Анализ неопределенности (Monte Carlo)")
+        st.markdown("""
+        Реальные параметры робота всегда отличаются от идеальных. Трение меняется, 
+        моторы имеют разброс KV, батареи разряжаются по-разному.
+        Этот модуль запускает **100 симуляций** с небольшими случайными отклонениями, 
+        чтобы показать реальный диапазон характеристик.
+        """)
+        
+        mc_col1, mc_col2 = st.columns(2)
+        with mc_col1:
+            mc_variation = st.slider("Разброс параметров (±%)", 5, 20, 10, 5)
+        with mc_col2:
+            mc_iters = st.slider("Количество симуляций", 50, 500, 100, 50)
+            
+        if st.button("🎲 Запустить Монте-Карло"):
+            with st.spinner(f"Выполняем {mc_iters} симуляций..."):
+                df_mc = run_monte_carlo_simulation(
+                    inputs, 
+                    static_res, 
+                    variation_pct=mc_variation/100.0, 
+                    iterations=mc_iters
+                )
+                
+                st.subheader("Результаты анализа")
+                
+                # График 1: Ток
+                mean_curr, std_curr = render_monte_carlo_plot(
+                    df_mc, "peak_current", "Распределение пикового тока", "А"
+                )
+                st.info(f"Средний ток: **{mean_curr:.1f} А**. С вероятностью 95% он будет в диапазоне **{mean_curr-2*std_curr:.0f} ... {mean_curr+2*std_curr:.0f} А**.")
+                
+                st.markdown("---")
+                
+                # График 2: Скорость
+                mean_spd, std_spd = render_monte_carlo_plot(
+                    df_mc, "max_speed", "Распределение максимальной скорости", "км/ч"
+                )
+                st.info(f"Средняя скорость: **{mean_spd:.1f} км/ч**. Доверительный интервал: **{mean_spd-2*std_spd:.1f} ... {mean_spd+2*std_spd:.1f} км/ч**.")
+
+    with tabs[5]:
         st.header("🔬 Параметрическое сканирование")
-        st.markdown("Анализ влияния одного параметра на все характеристики робота.")
-        
         col_param, col_range = st.columns([2, 2])
-        
         with col_param:
-            selected_param = st.selectbox(
-                "Выберите параметр для анализа",
-                options=list(SCANNABLE_PARAMS.keys()),
-                format_func=lambda x: SCANNABLE_PARAMS[x]["name"]
-            )
-        
+            selected_param = st.selectbox("Параметр", list(SCANNABLE_PARAMS.keys()), format_func=lambda x: SCANNABLE_PARAMS[x]["name"])
         param_info = SCANNABLE_PARAMS[selected_param]
-        
         with col_range:
-            st.write(f"**Диапазон:** {param_info['range'][0]} – {param_info['range'][1]} {param_info['unit']}")
-            num_points = st.slider("Количество точек", 10, 30, 15)
+            st.write(f"Диапазон: {param_info['range'][0]} – {param_info['range'][1]} {param_info['unit']}")
+            num_points = st.slider("Точки", 10, 30, 15)
         
         if st.button("▶️ Запустить сканирование"):
-            with st.spinner("Симуляция в процессе..."):
-                df_scan = run_parameter_scan(
-                    inputs,
-                    selected_param,
-                    param_info["range"],
-                    num_points
-                )
+            with st.spinner("Анализ..."):
+                df_scan = run_parameter_scan(inputs, selected_param, param_info["range"], num_points)
                 st.session_state["scan_result"] = df_scan
                 st.session_state["scan_param"] = selected_param
         
@@ -289,189 +350,68 @@ def main():
             df_scan = st.session_state["scan_result"]
             scan_param = st.session_state["scan_param"]
             param_info = SCANNABLE_PARAMS[scan_param]
-            
             render_parameter_scan_plots(df_scan, param_info["name"], param_info["unit"])
-            
             optimal = get_optimal_range(df_scan, scan_param)
-            st.success(f"🎯 Рекомендуемое значение: **{optimal['optimal_value']:.2f} {param_info['unit']}**")
-            
-            with st.expander("📊 Таблица результатов"):
-                st.dataframe(df_scan.style.highlight_max(axis=0, subset=["speed_kmh", "weapon_energy_kj"])
-                                         .highlight_min(axis=0, subset=["total_mass", "peak_current", "time_to_20"]))
+            st.success(f"Рекомендуемое: {optimal['optimal_value']:.2f} {param_info['unit']}")
 
-    with tabs[5]:
-        st.header("⚖️ Side-by-Side сравнение")
-        
+    with tabs[6]:
+        st.header("⚖️ Сравнение")
         saved_configs = get_saved_configs()
-        
         if len(saved_configs) < 1:
-            st.info("ℹ️ Нет сохраненных конфигураций. Сохраните хотя бы одну для сравнения.")
+            st.info("Сохраните конфигурацию для сравнения.")
         else:
-            st.markdown(f"**Сохранено конфигураций:** {len(saved_configs)}")
-            
             col_sel_a, col_sel_b = st.columns(2)
-            
-            with col_sel_a:
-                config_a_name = st.selectbox(
-                    "Конфигурация A",
-                    options=[c["name"] for c in saved_configs],
-                    key="config_a"
-                )
-            
-            with col_sel_b:
-                use_live = st.checkbox("Использовать текущую (LIVE)", value=True)
+            with col_sel_a: config_a_name = st.selectbox("Конфиг A", [c["name"] for c in saved_configs], key="cfg_a")
+            with col_sel_b: use_live = st.checkbox("Текущий (LIVE)", True)
             
             config_a = next((c for c in saved_configs if c["name"] == config_a_name), None)
-            
             if use_live:
                 config_b = {
-                    "name": "⚡ CURRENT (LIVE)",
-                    "speed_kmh": static_res["speed_kmh"],
+                    "name": "⚡ LIVE", 
+                    "speed_kmh": static_res["speed_kmh"], 
                     "total_mass": static_res["total_mass"],
-                    "weapon_energy_kj": static_res["weapon_energy"] / 1000,
+                    "weapon_energy_kj": static_res["weapon_energy"]/1000,
                     "peak_current": sim_stats["peak_current"],
-                    "g_force_self": collision["g_force_self"],
+                    "g_force_self": collision["g_force_self"]
                 }
             else:
-                config_b_name = st.selectbox(
-                    "Конфигурация B",
-                    options=[c["name"] for c in saved_configs if c["name"] != config_a_name],
-                    key="config_b"
-                )
+                config_b_name = st.selectbox("Конфиг B", [c["name"] for c in saved_configs if c["name"] != config_a_name], key="cfg_b")
                 config_b = next((c for c in saved_configs if c["name"] == config_b_name), None)
             
             if config_a and config_b:
                 comparison = get_comparison_data(config_a, config_b)
                 render_comparison_view(config_a, config_b, comparison)
 
-    with tabs[6]:
-        st.header("🤖 Автоматическая оптимизация")
-        st.markdown("Поиск оптимальных параметров на основе ваших целей и ограничений.")
-        
-        col_goals, col_constraints = st.columns(2)
-        
-        with col_goals:
-            st.subheader("Цели оптимизации")
-            maximize_speed = st.checkbox("Максимизировать скорость", value=True)
-            maximize_energy = st.checkbox("Максимизировать энергию удара", value=True)
-            minimize_mass = st.checkbox("Минимизировать массу", value=False)
-            minimize_current = st.checkbox("Минимизировать ток", value=False)
-            minimize_gforce = st.checkbox("Минимизировать перегрузку", value=False)
-            
-            st.markdown("**Веса целей** (важность)")
-            speed_weight = st.slider("Вес: Скорость", 0.1, 2.0, 1.0, 0.1)
-            energy_weight = st.slider("Вес: Энергия", 0.1, 2.0, 1.0, 0.1)
-        
-        with col_constraints:
-            st.subheader("Ограничения")
-            max_mass = st.number_input("Макс. масса (кг)", value=110.0, step=1.0)
-            max_current = st.number_input("Макс. ток (А)", value=500.0, step=10.0)
-            
-            st.markdown("**Параметры оптимизации**")
-            max_iterations = st.slider("Макс. итераций", 20, 100, 50, 10)
+    with tabs[7]:
+        st.header("🤖 Оптимизатор")
+        col_g, col_c = st.columns(2)
+        with col_g:
+            max_spd = st.checkbox("Макс. скорость", True)
+            max_en = st.checkbox("Макс. энергия", True)
+        with col_c:
+            lim_mass = st.number_input("Макс. масса", 110.0)
+            lim_curr = st.number_input("Макс. ток", 500.0)
         
         if st.button("🚀 Запустить"):
-            goals = {
-                "maximize_speed": maximize_speed,
-                "maximize_energy": maximize_energy,
-                "minimize_mass": minimize_mass,
-                "minimize_current": minimize_current,
-                "minimize_gforce": minimize_gforce,
-                "speed_weight": speed_weight,
-                "energy_weight": energy_weight,
-                "mass_weight": 0.5,
-                "current_weight": 0.1,
-                "gforce_weight": 0.5,
-            }
-            
-            constraints_dict = {
-                "max_mass": max_mass,
-                "max_current": max_current,
-            }
-            
-            bounds = get_default_bounds()
-            
-            optimizer = RobotOptimizer(inputs)
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            with st.spinner("Оптимизация в процессе..."):
-                result = optimizer.optimize(goals, constraints_dict, bounds, max_iterations)
-                progress_bar.progress(100)
-                status_text.success("✅ Оптимизация завершена!")
-            
-            optimized_params = parse_optimized_params(result)
-            
-            st.subheader("📊 Результаты оптимизации")
-            
-            col_res1, col_res2 = st.columns(2)
-            
-            with col_res1:
-                st.markdown("**Оптимальные параметры:**")
-                st.write(f"- Редукция: **{optimized_params['gear_ratio']:.2f}:1**")
-                st.write(f"- Диаметр колеса: **{optimized_params['wheel_dia_mm']} мм**")
-                st.write(f"- KV мотора: **{optimized_params['motor_kv']}**")
-                st.write(f"- Масса ротора: **{optimized_params['weapon_mass_kg']:.1f} кг**")
-                st.write(f"- Толщина брони: **{optimized_params['armor_thickness']} мм**")
-            
-            with col_res2:
-                st.markdown("**Применить оптимизацию:**")
-                if st.button("✨ Применить параметры"):
-                    for key, value in optimized_params.items():
-                        if key in st.session_state:
-                            st.session_state[key] = value
-                    st.success("Параметры применены! Перезагрузите страницу.")
+            with st.spinner("Оптимизация..."):
+                optimizer = RobotOptimizer(inputs)
+                goals = {"maximize_speed": max_spd, "maximize_energy": max_en, "speed_weight": 1.0, "energy_weight": 1.0}
+                res = optimizer.optimize(goals, {"max_mass": lim_mass, "max_current": lim_curr}, get_default_bounds())
+                opt_params = parse_optimized_params(res)
+                st.success("Готово!")
+                st.write(opt_params)
+                if st.button("Применить"):
+                    for k, v in opt_params.items(): st.session_state[k] = v
                     st.rerun()
-            
-            history = optimizer.get_history()
-            render_optimization_progress(history)
-            
-            if st.button("💾 Сохранить оптимальную конфигурацию"):
-                opt_inputs = inputs.copy()
-                opt_inputs.update(optimized_params)
-                opt_static = run_static_calculations(opt_inputs)
-                
-                opt_sim_params = sim_params.copy()
-                opt_sim_params.update({
-                    "motor_kv": optimized_params["motor_kv"],
-                    "gear_ratio": optimized_params["gear_ratio"],
-                    "wheel_dia_mm": optimized_params["wheel_dia_mm"],
-                })
-                
-                opt_df_sim = simulate_full_system(opt_sim_params, opt_static["total_mass"], max_time=4.0)
-                opt_sim_stats = aggregate_sim_stats(opt_df_sim)
-                opt_collision = analyze_collision(
-                    opt_static["total_mass"],
-                    opt_static["weapon_inertia"],
-                    opt_static["weapon_rpm"]
-                )
-                
-                save_configuration(
-                    f"{inputs['name']} (Optimized)",
-                    opt_inputs,
-                    opt_static,
-                    opt_sim_stats,
-                    opt_collision
-                )
-                st.success("Оптимальная конфигурация сохранена!")
 
-    with tabs[7]:
-        st.subheader("Паспорт робота (Markdown)")
-        with st.container(border=True):
-            st.markdown(report_md)
-        st.download_button(
-            "📥 Скачать паспорт (.md)",
-            data=report_md,
-            file_name="robot_passport.md",
-            mime="text/markdown",
-        )
+    with tabs[8]:
+        st.subheader("Паспорт")
+        st.download_button("Скачать .md", report_md, "robot.md")
+        st.markdown(report_md)
 
-    # 2. Автозапуск руководства при первом визите (в конце отрисовки, чтобы не блокировать UI инициализацию)
     if st.session_state.first_visit:
         show_manual()
         st.session_state.first_visit = False
-
 
 if __name__ == "__main__":
     main()
