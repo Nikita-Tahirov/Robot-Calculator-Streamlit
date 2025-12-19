@@ -1,169 +1,188 @@
-# main.py
-import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import physics  # Наш модуль
-import styles   # Наш модуль
+import datetime
 
-# --- НАСТРОЙКА СТРАНИЦЫ ---
-st.set_page_config(
-    page_title="1T Rex | Digital Twin",
-    page_icon="🦖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+import streamlit as st
+
+from physics import (
+    run_static_calculations,
+    simulate_full_system,
+    analyze_collision,
+    aggregate_sim_stats,
+    generate_report,
+)
+from styles import (
+    setup_page,
+    inject_global_css,
+    render_kpi_row,
+    render_weight_pie,
+    render_drive_plot,
+    render_thermal_plot,
 )
 
-# --- ПРИМЕНЕНИЕ СТИЛЯ ---
-styles.apply_design_system()
+ROBOT_LIMIT_KG = 110.0
 
-# --- САЙДБАР (Ввод данных) ---
-with st.sidebar:
-    st.image("https://img.icons8.com/nolan/96/robot.png", width=64) # Можно заменить на лого
-    st.title("КОНФИГУРАТОР")
-    
-    st.markdown("### ⚡ Энергосистема")
-    voltage_s = st.selectbox("Батарея (S)", [4, 6, 8, 12], index=3)
-    voltage = voltage_s * 3.7
-    batt_res = st.slider("Сопротивление батареи (мОм)", 10, 200, 40)
-    
-    st.markdown("### ⚙️ Привод")
-    kv = st.number_input("KV мотора", value=180, step=10)
-    gear = st.number_input("Редукция (X:1)", value=12.0, step=0.5)
-    wheel = st.number_input("Диаметр колеса (мм)", value=120, step=10)
-    
-    st.markdown("### ⚖️ Масса")
-    mass = st.number_input("Полная масса (кг)", value=13.6, step=0.1)
 
-# --- ИНИЦИАЛИЗАЦИЯ ФИЗИКИ ---
-bot = physics.RobotPhysics(mass, voltage, kv, gear, wheel, batt_res)
-specs = bot.calculate_static_specs()
+def build_sidebar():
+    st.sidebar.title("🦖 1T Rex – Конфигуратор")
 
-# --- ОСНОВНОЙ ИНТЕРФЕЙС ---
-# Шапка
-st.markdown("""
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
-        <div>
-            <h1 style='margin-bottom: 0;'>1T REX <span style='font-size: 0.5em; opacity: 0.7;'>DIGITAL TWIN</span></h1>
-            <p style='color: var(--text-muted);'>Инженерная симуляция боевой платформы</p>
-        </div>
-        <div style='text-align: right;'>
-             <span style='background: #280046; padding: 5px 15px; border-radius: 15px; font-size: 0.8em; border: 1px solid #3be4ff;'>v2.4.0 STABLE</span>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
-
-# Метрики (Top Level)
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("МАКС. СКОРОСТЬ", f"{specs['speed_kmh']:.1f} км/ч")
-col2.metric("СИЛА ТЯГИ", f"{specs['force_n']:.0f} Н")
-col3.metric("КОЭФФ. ТЯГИ", f"{specs['push_ratio']:.2f} G")
-col4.metric("ПИТАНИЕ", f"{voltage:.1f} В")
-
-# --- ВКЛАДКИ АНАЛИЗА ---
-tab1, tab2, tab3 = st.tabs(["🚀 ДИНАМИКА РАЗГОНА", "💥 УДАР И G-FORCE", "📋 ПАСПОРТ"])
-
-# TAB 1: СИМУЛЯЦИЯ
-with tab1:
-    styles.card_start()
-    st.markdown("### Time-Domain Simulation (0-3 сек)")
-    
-    df_sim = bot.run_time_domain_simulation()
-    
-    # График Plotly
-    fig = go.Figure()
-    
-    # Линия скорости
-    fig.add_trace(go.Scatter(
-        x=df_sim['time'], y=df_sim['speed_kmh'],
-        name='Скорость (км/ч)',
-        line=dict(color='#3be4ff', width=3),
-        fill='tozeroy',
-        fillcolor='rgba(59, 228, 255, 0.1)'
-    ))
-    
-    # Линия тока (на второй оси)
-    fig.add_trace(go.Scatter(
-        x=df_sim['time'], y=df_sim['current'],
-        name='Ток (А)',
-        line=dict(color='#ff2eaa', width=2, dash='dot'),
-        yaxis='y2'
-    ))
-    
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        height=400,
-        margin=dict(l=20, r=20, t=30, b=20),
-        yaxis=dict(title="Скорость (км/ч)", gridcolor='rgba(255,255,255,0.1)'),
-        yaxis2=dict(title="Ток (А)", overlaying='y', side='right', showgrid=False),
-        xaxis=dict(title="Время (сек)", gridcolor='rgba(255,255,255,0.1)'),
-        legend=dict(orientation="h", y=1.1)
+    # 1. Энергосистема
+    st.sidebar.header("1. Энергосистема")
+    name = st.sidebar.text_input("Название проекта", value="1T Rex")
+    voltage_s = st.sidebar.slider("Аккумулятор (S)", 6, 14, 12)
+    battery_ir_mohm = st.sidebar.number_input(
+        "Внутреннее сопротивление сборки (мОм)", value=25.0
     )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Выводы симуляции
-    t_to_20 = df_sim[df_sim['speed_kmh'] >= 20]['time'].min()
-    if pd.isna(t_to_20): t_to_20 = "> 3.0"
-    
-    c1, c2 = st.columns(2)
-    c1.info(f"⏱️ Разгон 0-20 км/ч: **{t_to_20} сек**")
-    c2.warning(f"🔋 Пиковый ток старта: **{df_sim['current'].max():.1f} А**")
-    
-    styles.card_end()
 
-# TAB 2: УДАР
-with tab2:
-    col_impact_l, col_impact_r = st.columns([1, 2])
-    
-    with col_impact_l:
-        styles.card_start()
-        st.markdown("### 📐 Условия удара")
-        imp_speed = st.slider("Скорость удара (км/ч)", 5, 50, 25)
-        deform = st.slider("Деформация защиты (мм)", 1, 100, 15, help="Насколько сомнется демпфер при ударе")
-        
-        impact_data = bot.impact_analysis(imp_speed, deform)
-        styles.card_end()
-        
-    with col_impact_r:
-        styles.card_start()
-        g = impact_data['g_force']
-        
-        # Цветовая кодировка опасности
-        color = "#7ee8a1" # Green
-        status = "БЕЗОПАСНО"
-        if g > 20: 
-            color = "#ffe45e"
-            status = "ВНИМАНИЕ"
-        if g > 50: 
-            color = "#ff7b7b"
-            status = "КРИТИЧЕСКИ"
-            
-        st.markdown(f"""
-            <div style='text-align: center;'>
-                <h3 style='color: {color}; font-size: 3em; margin: 0;'>{g:.1f} G</h3>
-                <p style='letter-spacing: 0.2em; color: {color}; opacity: 0.8;'>ПЕРЕГРУЗКА ЭЛЕКТРОНИКИ ({status})</p>
-                <hr style='border-color: rgba(255,255,255,0.1); margin: 20px 0;'>
-                <p>Энергия удара: <b>{impact_data['energy_joules']:.1f} Дж</b></p>
-            </div>
-        """, unsafe_allow_html=True)
-        styles.card_end()
+    # 2. Ходовая
+    st.sidebar.header("2. Ходовая часть")
+    drive_motor_count = st.sidebar.selectbox("Кол-во моторов хода", [2, 4], index=1)
+    motor_kv = st.sidebar.number_input("KV моторов хода", value=190)
+    gear_ratio = st.sidebar.number_input("Редукция хода", value=12.5)
+    wheel_dia_mm = st.sidebar.number_input("Диаметр колеса (мм)", value=200)
+    esc_current_limit_drive = st.sidebar.slider(
+        "Лимит тока ESC (ход), А", 20, 150, 60
+    )
+    friction_coeff = st.sidebar.slider("Коэф. трения (покрытие/колеса)", 0.3, 1.0, 0.7)
 
-# TAB 3: ПАСПОРТ
-with tab3:
-    st.markdown("### 📄 Технический паспорт")
-    code = f"""
-    МОДЕЛЬ: 1T REX CONFIGURATION
-    ----------------------------
-    Масса: {mass} кг
-    Напряжение: {voltage:.1f} В ({voltage_s}S)
-    Мотор: KV {kv}
-    Макс. скорость: {specs['speed_kmh']:.1f} км/ч
-    Тяговооруженность: {specs['push_ratio']:.2f}
-    """
-    st.code(code, language="yaml")
-    st.download_button("Скачать конфигурацию", code, "robot_config.txt")
+    # 3. Оружие
+    st.sidebar.header("3. Оружие")
+    simulate_weapon = st.sidebar.checkbox("Симулировать работу оружия", value=True)
+    weapon_motor_count = st.sidebar.selectbox("Кол-во моторов оружия", [1, 2], index=1)
+    weapon_motor_kv = st.sidebar.number_input("KV моторов оружия", value=150)
+    weapon_reduction = st.sidebar.number_input("Редукция оружия", value=1.5)
+    weapon_mass_kg = st.sidebar.number_input("Масса ротора (кг)", value=28.0)
+    weapon_radius_mm = st.sidebar.number_input("Радиус удара (мм)", value=180)
+    esc_current_limit_weapon = st.sidebar.slider(
+        "Лимит тока ESC (оружие), А", 50, 300, 120
+    )
 
-# Футер
-st.markdown("<br><br><div style='text-align:center; color:#555; font-size:0.8em;'>POWERED BY STREAMLIT & PHYSICS ENGINE</div>", unsafe_allow_html=True)
+    # 4. Вес и броня
+    st.sidebar.header("4. Броня и масса")
+    armor_thickness = st.sidebar.slider("Толщина брони (мм)", 2, 10, 5)
+    armor_coverage = st.sidebar.slider("Покрытие броней (%)", 10, 100, 35)
+
+    # Базовые массы (можно вынести в отдельные настройки)
+    base_drive_mass = 18.0
+    base_elec_mass = 12.0
+    base_frame_mass = 25.0
+    armor_density_kg_m3 = 2700.0  # алюминий
+    armor_area_total = 3.0        # м²
+
+    inputs = {
+        "name": name,
+        "voltage_s": voltage_s,
+        "battery_ir_mohm": battery_ir_mohm,
+        "drive_motor_count": drive_motor_count,
+        "motor_kv": motor_kv,
+        "gear_ratio": gear_ratio,
+        "wheel_dia_mm": wheel_dia_mm,
+        "esc_current_limit_drive": esc_current_limit_drive,
+        "friction_coeff": friction_coeff,
+        "simulate_weapon": simulate_weapon,
+        "weapon_motor_count": weapon_motor_count,
+        "weapon_motor_kv": weapon_motor_kv,
+        "weapon_reduction": weapon_reduction,
+        "weapon_mass_kg": weapon_mass_kg,
+        "weapon_radius_mm": weapon_radius_mm,
+        "esc_current_limit_weapon": esc_current_limit_weapon,
+        "armor_thickness": armor_thickness,
+        "armor_coverage": armor_coverage,
+        "base_drive_mass": base_drive_mass,
+        "base_elec_mass": base_elec_mass,
+        "base_frame_mass": base_frame_mass,
+        "armor_density_kg_m3": armor_density_kg_m3,
+        "armor_area_total": armor_area_total,
+    }
+
+    return inputs, base_drive_mass, base_elec_mass, base_frame_mass
+
+
+def main():
+    setup_page()
+    inject_global_css()
+
+    inputs, base_drive_mass, base_elec_mass, base_frame_mass = build_sidebar()
+
+    # --------- Расчеты ---------
+    static_res = run_static_calculations(inputs)
+
+    sim_params = {
+        "voltage_nom": static_res["voltage_nom"],
+        "battery_ir_mohm": inputs["battery_ir_mohm"],
+        "drive_motor_count": inputs["drive_motor_count"],
+        "motor_kv": inputs["motor_kv"],
+        "gear_ratio": inputs["gear_ratio"],
+        "wheel_dia_mm": inputs["wheel_dia_mm"],
+        "friction_coeff": inputs["friction_coeff"],
+        "esc_current_limit_drive": inputs["esc_current_limit_drive"],
+        "simulate_weapon": inputs["simulate_weapon"],
+        "weapon_motor_count": inputs["weapon_motor_count"],
+        "weapon_motor_kv": inputs["weapon_motor_kv"],
+        "weapon_reduction": inputs["weapon_reduction"],
+        "weapon_inertia": static_res["weapon_inertia"],
+        "esc_current_limit_weapon": inputs["esc_current_limit_weapon"],
+    }
+
+    df_sim = simulate_full_system(sim_params, static_res["total_mass"])
+    sim_stats = aggregate_sim_stats(df_sim)
+    collision = analyze_collision(
+        static_res["total_mass"],
+        static_res["weapon_inertia"],
+        static_res["weapon_rpm"],
+        target_mass=110.0,
+    )
+
+    params_for_report = {
+        "name": inputs["name"],
+        "voltage_s": inputs["voltage_s"],
+        "voltage_nom": static_res["voltage_nom"],
+        "date_str": datetime.datetime.now().strftime("%d.%m.%Y"),
+    }
+
+    report_md = generate_report(params_for_report, static_res, sim_stats, collision)
+
+    # --------- UI ---------
+    st.title(f"Digital Twin: {inputs['name']}")
+
+    tab_summary, tab_dynamics, tab_thermal, tab_collision, tab_passport = st.tabs(
+        ["📊 Сводка", "⏱ Динамика", "🔥 Тепло", "💥 Столкновение", "📑 Паспорт"]
+    )
+
+    with tab_summary:
+        render_kpi_row(static_res, sim_stats, ROBOT_LIMIT_KG)
+        st.markdown("---")
+        render_weight_pie(static_res, base_drive_mass, base_elec_mass, base_frame_mass)
+
+    with tab_dynamics:
+        st.subheader("Разгон и нагрузка на батарею")
+        render_drive_plot(df_sim)
+
+    with tab_thermal:
+        st.subheader("Тепловой режим моторов")
+        render_thermal_plot(df_sim)
+
+    with tab_collision:
+        st.subheader("Модель столкновения спиннера с целью 110 кг")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Энергия удара", f"{collision['energy_joules']/1000:.1f} кДж")
+            st.metric("Сила удара", f"{collision['impact_force_kn']:.1f} кН")
+            st.metric("Эквивалент", collision["equivalent"])
+        with col2:
+            st.metric("Перегрузка для нас", f"{collision['g_force_self']:.1f} G")
+            st.metric("Перегрузка цели", f"{collision['g_force_target']:.1f} G")
+            st.metric("Скорость отдачи", f"{collision['recoil_speed_kmh']:.1f} км/ч")
+
+    with tab_passport:
+        st.subheader("Паспорт робота (Markdown)")
+        with st.container(border=True):
+            st.markdown(report_md)
+        st.download_button(
+            "📥 Скачать паспорт (.md)",
+            data=report_md,
+            file_name="robot_passport.md",
+            mime="text/markdown",
+        )
+
+
+if __name__ == "__main__":
+    main()
